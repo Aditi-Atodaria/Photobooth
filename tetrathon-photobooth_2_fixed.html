@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TETRATHON 2026 — Team Photobooth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;1,400&family=Inter:wght@400;700&family=Antonio:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Henry — warm monochrome broadside tokens */
+    --color-paper: #fafafa;
+    --color-hairline: #eeeeee;
+    --color-midstone: #9f9f9f;
+    --color-ash: #666666;
+    --color-pebble: #b3b3b3;
+    --color-sepia: #3e3b36;
+    --color-headline-ink: #2a2722;
+
+    --bg: var(--color-paper);
+    --surface: var(--color-paper);
+    --surface-2: #f2f1ec;
+    --paper: var(--color-paper);
+    --ink: var(--color-headline-ink);
+    --muted: var(--color-ash);
+    --line: var(--color-hairline);
+    --line-strong: var(--color-headline-ink);
+
+    --font-neue-montreal: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-louize-display: 'Fraunces', ui-serif, Georgia, serif;
+    --font-louize: 'Fraunces', ui-serif, Georgia, serif;
+    --font-manuka: 'Antonio', ui-sans-serif, system-ui, sans-serif;
+
+    --display: var(--font-neue-montreal);
+    --mono: var(--font-neue-montreal);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--color-paper);
+    color: var(--color-headline-ink);
+    font-family: var(--font-neue-montreal);
+    letter-spacing:-0.01em;
+    min-height:100vh;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding: 32px 0 64px;
+  }
+  .app{ width:100%; max-width:560px; }
+
+  /* ---------- top ticker banner ---------- */
+  .mark{
+    display:flex; align-items:center; gap:10px; justify-content:center;
+    padding:6px 16px; margin-bottom:28px;
+    border-top:1px solid var(--color-headline-ink);
+    border-bottom:1px solid var(--color-headline-ink);
+  }
+  .mark svg{ width:16px; height:16px; }
+  .mark .kicker{ font-family:var(--font-neue-montreal); font-weight:400; font-size:12px; letter-spacing:-0.12px; color:var(--color-headline-ink); text-transform:uppercase; }
+  h1.title{
+    font-family: var(--font-louize-display);
+    font-weight:400;
+    font-size: clamp(40px,10vw,64px);
+    line-height:0.9;
+    text-align:center;
+    letter-spacing:0;
+    margin: 2px 16px 12px;
+    color: var(--color-headline-ink);
+  }
+  .subtitle{
+    font-family: var(--font-louize);
+    text-align:center; color: var(--color-sepia); font-size:16px; line-height:1.3;
+    margin: 0 16px 32px; letter-spacing:-0.01em;
+  }
+
+  #screen-join, #screen-room, #screen-result{ padding:0 16px; }
+
+  .card{
+    background: var(--color-paper);
+    border:1px solid var(--color-headline-ink);
+    border-radius:12px;
+    padding:24px;
+    margin-bottom:16px;
+  }
+  .hint{ font-family:var(--font-louize); color:var(--color-sepia); font-size:16px; line-height:1.3; margin-bottom:18px; letter-spacing:-0.01em; }
+
+  label{ display:block; font-family:var(--font-neue-montreal); font-weight:700; font-size:12px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-ash); margin-bottom:6px; }
+  input[type=text]{
+    width:100%; background:var(--color-paper); border:1px solid var(--color-midstone); color:var(--color-headline-ink);
+    font-family:var(--font-neue-montreal); font-size:16px; letter-spacing:-0.01em; padding:12px 14px; border-radius:12px; margin-bottom:16px; outline:none;
+  }
+  input[type=text]:focus{ border-color:var(--color-headline-ink); }
+  input[type=text]::placeholder{ color:var(--color-pebble); }
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    width:100%; padding:13px 18px; border-radius:12px; cursor:pointer;
+    background:transparent;
+    font-family:var(--font-neue-montreal); font-weight:700; font-size:14px; letter-spacing:-0.12px; text-transform:uppercase;
+    transition:opacity .12s ease;
+  }
+  .btn:active{ opacity:.6; }
+  .btn-primary{ border:1px solid var(--color-headline-ink); color:var(--color-headline-ink); font-size:16px; padding:15px 18px; }
+  .btn-primary:hover{ background:var(--color-headline-ink); color:var(--color-paper); }
+  .btn-ghost{ background:transparent; color:var(--color-ash); border:1px solid var(--color-midstone); }
+  .btn-ghost:hover{ border-color:var(--color-headline-ink); color:var(--color-headline-ink); }
+  .btn:disabled{ opacity:.35; cursor:not-allowed; }
+
+  .tabs{ display:flex; gap:24px; margin-bottom:24px; border-bottom:1px solid var(--color-hairline); padding:0 0 12px; }
+  .tab{ text-align:center; cursor:pointer; color:var(--color-pebble); font-family:var(--font-neue-montreal); font-weight:700; font-size:12px; letter-spacing:-0.12px; text-transform:uppercase; }
+  .tab.active{ color:var(--color-headline-ink); font-size:16px; }
+
+  .err{ color:var(--color-headline-ink); font-style:italic; font-family:var(--font-louize); font-size:14px; margin:-8px 0 14px; }
+
+  /* ---------- lobby ---------- */
+  .room-code-pill{
+    font-family:var(--font-neue-montreal); font-weight:400; font-size:12px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-headline-ink);
+    background:transparent; border:1px solid var(--color-headline-ink);
+    display:inline-flex; align-items:center; gap:8px; padding:4px 8px; border-radius:12px;
+  }
+  .room-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; flex-wrap:wrap;}
+  .room-head .team-name{ font-family:var(--font-louize-display); font-size:24px; font-weight:400; }
+
+  .cam-wrap{
+    position:relative; width:100%; aspect-ratio:4/3; background:var(--color-headline-ink);
+    border-radius:0; overflow:hidden; border:1px solid var(--color-headline-ink); margin-bottom:16px;
+  }
+  .cam-wrap video{ width:100%; height:100%; object-fit:cover; transform:scaleX(-1); display:block; filter:grayscale(1) contrast(1.05); }
+  .cam-status{
+    position:absolute; top:10px; left:10px; display:flex; align-items:center; gap:6px;
+    background:var(--color-paper); padding:4px 8px; border-radius:12px; font-family:var(--font-neue-montreal); font-weight:400; font-size:12px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-headline-ink);
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--color-headline-ink); }
+  .dot.off{ background:transparent; border:1px solid var(--color-midstone); }
+  .flash{
+    position:absolute; inset:0; background:var(--color-paper); opacity:0; pointer-events:none;
+  }
+  .flash.go{ animation: flashpop .55s ease-out; }
+  @keyframes flashpop{ 0%{opacity:0;} 8%{opacity:1;} 100%{opacity:0;} }
+
+  .countdown-num{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(42,39,34,.55);
+    font-family:var(--font-louize-display); font-size:96px; font-weight:400; color:var(--color-paper);
+  }
+
+  .members{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
+  .member-chip{
+    display:flex; align-items:center; gap:7px; background:transparent;
+    border:1px solid var(--color-midstone); padding:6px 10px; border-radius:12px; font-family:var(--font-neue-montreal); font-size:13px; letter-spacing:-0.01em; color:var(--color-headline-ink);
+  }
+  .member-chip.you{ border-color:var(--color-headline-ink); }
+  .member-chip .check{ color:var(--color-headline-ink); font-size:12px; }
+
+  .section-label{ font-family:var(--font-neue-montreal); font-weight:700; font-size:12px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-ash); margin-bottom:10px; }
+
+  /* ---------- format picker ---------- */
+  .format-picker{ display:flex; gap:0; margin-bottom:18px; border:1px solid var(--color-headline-ink); border-radius:12px; overflow:hidden; }
+  .format-option{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:14px 8px 12px; cursor:pointer; background:transparent; border:none; border-right:1px solid var(--color-hairline); font-family:var(--font-neue-montreal); transition:background .15s ease, color .15s ease; }
+  .format-option:last-child{ border-right:none; }
+  .format-option .fmt-icon{ font-size:20px; line-height:1; }
+  .format-option .fmt-label{ font-weight:700; font-size:11px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-ash); transition:color .15s ease; }
+  .format-option:hover{ background:var(--surface-2); }
+  .format-option.active{ background:var(--color-headline-ink); }
+  .format-option.active .fmt-label{ color:var(--color-paper); }
+  .format-option.active .fmt-icon{ filter:brightness(10); }
+
+  /* ---------- strip ---------- */
+  .strip-wrap{ display:flex; justify-content:center; margin-bottom:18px; }
+  canvas#stripCanvas{ max-width:100%; height:auto; border-radius:0; border:1px solid var(--color-headline-ink); }
+
+  .row-btns{ display:flex; gap:10px; }
+  .row-btns .btn{ flex:1; }
+
+  .footer-note{ text-align:center; color:var(--color-ash); font-size:12px; font-family:var(--font-neue-montreal); letter-spacing:-0.12px; text-transform:uppercase; margin-top:24px; line-height:1.6; }
+  .footer-note a{ color:var(--color-headline-ink); }
+
+  .hidden{ display:none !important; }
+
+  .waitlist{ display:flex; flex-direction:column; gap:0; margin-bottom:6px; }
+  .wait-row{ display:flex; align-items:center; justify-content:space-between; font-family:var(--font-neue-montreal); font-size:14px; letter-spacing:-0.01em; padding:10px 0; background:transparent; border-bottom:1px solid var(--color-hairline); border-radius:0; }
+  .wait-row .badge{ font-family:var(--font-neue-montreal); font-weight:700; font-size:12px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-pebble); }
+  .wait-row .badge.ready{ color:var(--color-headline-ink); }
+
+  @media (max-width:420px){
+    .countdown-num{ font-size:64px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="mark">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 L21 8 L21 16 L12 22 L3 16 L3 8 Z" stroke="#2a2722" stroke-width="1.6"/><path d="M12 2 L12 22 M3 8 L21 16 M21 8 L3 16" stroke="#2a2722" stroke-width="1" opacity=".5"/></svg>
+    <span class="kicker">Tetrathon 2026</span>
+  </div>
+  <h1 class="title">Team Photobooth</h1>
+  <p class="subtitle">One strip, everyone's face — captured together from wherever you're hacking.</p>
+
+  <!-- ================= SCREEN 1: JOIN ================= -->
+  <div id="screen-join">
+    <div class="card">
+      <div class="tabs">
+        <div class="tab active" id="tab-create">Start a room</div>
+        <div class="tab" id="tab-join">Join a room</div>
+      </div>
+
+      <div id="pane-create">
+        <p class="hint">Create a room for your team. You'll get a short code — share it with your teammates so they can hop in from their own devices.</p>
+        <label for="teamName">Team name</label>
+        <input type="text" id="teamName" placeholder="e.g. Nullpointers" maxlength="28">
+        <label for="creatorName">Your name</label>
+        <input type="text" id="creatorName" placeholder="e.g. Aditi" maxlength="20">
+        <div class="err hidden" id="err-create"></div>
+        <button class="btn btn-primary" id="btn-create">Create room →</button>
+      </div>
+
+      <div id="pane-join" class="hidden">
+        <p class="hint">Got a room code from a teammate? Enter it below to join their photobooth session.</p>
+        <label for="roomCodeInput">Room code</label>
+        <input type="text" id="roomCodeInput" placeholder="e.g. TETRA-7K2Q" maxlength="16" style="text-transform:uppercase;">
+        <label for="joinerName">Your name</label>
+        <input type="text" id="joinerName" placeholder="e.g. Rohan" maxlength="20">
+        <div class="err hidden" id="err-join"></div>
+        <button class="btn btn-primary" id="btn-join">Join room →</button>
+      </div>
+    </div>
+    <p class="footer-note">Works best in Chrome, Edge, or Safari with camera permission allowed.</p>
+  </div>
+
+  <!-- ================= SCREEN 2: LOBBY / CAPTURE ================= -->
+  <div id="screen-room" class="hidden">
+    <div class="card">
+      <div class="room-head">
+        <div>
+          <div class="team-name" id="roomTeamName">Team</div>
+          <div class="room-code-pill">⬡ <span id="roomCodeDisplay">TETRA-0000</span></div>
+        </div>
+        <button class="btn btn-ghost" id="btn-copy" style="width:auto; padding:9px 14px; font-size:13px;">Copy invite</button>
+      </div>
+
+      <div class="cam-wrap" id="camWrap">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="cam-status"><span class="dot off" id="camDot"></span><span id="camStatusText">connecting camera…</span></div>
+        <div class="flash" id="flash"></div>
+        <div class="countdown-num hidden" id="countdownNum"></div>
+      </div>
+
+      <div class="section-label">Team members (<span id="memberCount">0</span> in room)</div>
+      <div class="members" id="memberList"></div>
+
+      <div id="lobbyControls">
+        <button class="btn btn-primary" id="btn-start-countdown">📸 Start synced countdown</button>
+        <p class="hint" style="margin-top:12px; margin-bottom:0;">Everyone currently in the room will be captured at the same moment — get in frame before the countdown ends.</p>
+      </div>
+
+      <div id="captureWaiting" class="hidden">
+        <div class="section-label" style="margin-top:6px;">Waiting for everyone's shot</div>
+        <div class="waitlist" id="waitList"></div>
+        <button class="btn btn-ghost" id="btn-force-finish" style="margin-top:10px;">Build strip now</button>
+      </div>
+    </div>
+    <p class="footer-note" id="roomFooterNote">Room code: <span id="roomCodeFoot"></span> — anyone with this code can join.</p>
+  </div>
+
+  <!-- ================= SCREEN 3: RESULT ================= -->
+  <div id="screen-result" class="hidden">
+    <div class="card">
+      <div class="section-label" id="resultLabel">Your photobooth strip</div>
+      <div class="format-picker">
+        <button class="format-option active" data-format="strip"><span class="fmt-icon">🎞️</span><span class="fmt-label">Strip</span></button>
+        <button class="format-option" data-format="polaroid"><span class="fmt-icon">📸</span><span class="fmt-label">Polaroids</span></button>
+        <button class="format-option" data-format="grid"><span class="fmt-icon">⊞</span><span class="fmt-label">Grid</span></button>
+      </div>
+      <div class="strip-wrap"><canvas id="stripCanvas"></canvas></div>
+      <div class="row-btns">
+        <button class="btn btn-ghost" id="btn-retake">↺ Retake</button>
+        <button class="btn btn-primary" id="btn-download">⬇ Download</button>
+      </div>
+    </div>
+    <p class="footer-note">Made with the TETRATHON 2026 photobooth — good luck out there, hackers.</p>
+  </div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  "use strict";
+
+  const supabase = window.supabase.createClient(
+    "https://xfdokilqoljrzqpegbjc.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmZG9raWxxb2xqcnpxcGVnYmpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1MTM5NTEsImV4cCI6MjEwMTA4OTk1MX0.8fmAgbqliEuAjDpxsStiUpk2E_GNC8RhOFv9B5x0nEE"
+  );
+  // ---------------- state ----------------
+  const clientId = 'm_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+  let state = {
+    roomCode: null,
+    teamName: '',
+    myName: '',
+    stream: null,
+    pollTimer: null,
+    countdownTimer: null,
+    captureAt: null,
+    hasCaptured: false,
+    format: 'strip',   // 'strip' | 'polaroid' | 'grid'
+    members: [],       // [{id,name,joinedAt}]
+    photos: {},         // id -> dataURL
+  };
+
+  const $ = (id) => document.getElementById(id);
+
+
+  // Upsert a member into the Supabase members table for a room.
+  async function addMember(code, member){
+    await supabase
+    .from("members")
+    .upsert({
+        room_code: code,
+        client_id: member.id,
+        name: member.name,
+        joined_at: new Date().toISOString()
+    });
+  }
+
+  function genRoomCode(){
+    const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let s = '';
+    for(let i=0;i<4;i++) s += letters[Math.floor(Math.random()*letters.length)];
+    return 'TETRA-' + s;
+  }
+
+  // ---------------- tabs ----------------
+  $('tab-create').addEventListener('click', () => switchTab('create'));
+  $('tab-join').addEventListener('click', () => switchTab('join'));
+  function switchTab(which){
+    $('tab-create').classList.toggle('active', which==='create');
+    $('tab-join').classList.toggle('active', which==='join');
+    $('pane-create').classList.toggle('hidden', which!=='create');
+    $('pane-join').classList.toggle('hidden', which!=='join');
+  }
+
+  // ---------------- create / join ----------------
+  $('btn-create').addEventListener('click', async () => {
+    const team = $('teamName').value.trim();
+    const name = $('creatorName').value.trim();
+    const errEl = $('err-create');
+    if(!team || !name){
+      errEl.textContent = 'Please enter both a team name and your name.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    errEl.classList.add('hidden');
+    const code = genRoomCode();
+    state.roomCode = code;
+    state.teamName = team;
+    state.myName = name;
+    await supabase.from("rooms").insert({
+        code: code,
+        team_name: team
+    });
+    await addMember(code, { id: clientId, name: name, joinedAt: Date.now() });
+    enterRoom();
+  });
+
+  $('btn-join').addEventListener('click', async () => {
+    const codeRaw = $('roomCodeInput').value.trim().toUpperCase();
+    const name = $('joinerName').value.trim();
+    const errEl = $('err-join');
+    if(!codeRaw || !name){
+      errEl.textContent = 'Please enter the room code and your name.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    errEl.classList.add('hidden');
+    const { data: teamRes } = await supabase.from("rooms").select("*").eq("code", codeRaw).single();
+    if(!teamRes){
+      errEl.textContent = "Couldn't find that room. Double-check the code with your teammate.";
+      errEl.classList.remove('hidden');
+      return;
+    }
+    let teamData = {};
+    try{ teamData = teamRes; }catch(e){}
+    state.roomCode = codeRaw;
+    state.teamName = teamData.team_name || 'Team';
+    state.myName = name;
+    await addMember(codeRaw, { id: clientId, name: name, joinedAt: Date.now() });
+    enterRoom();
+  });
+
+  // ---------------- enter room ----------------
+  async function enterRoom(){
+
+    if(!state.members.find(m=>m.id===clientId)){
+      state.members.push({id:clientId,name:state.myName,joinedAt:Date.now()});
+      renderMembers();
+    }
+    $('screen-join').classList.add('hidden');
+    $('screen-room').classList.remove('hidden');
+    $('roomTeamName').textContent = state.teamName;
+    $('roomCodeDisplay').textContent = state.roomCode;
+    $('roomCodeFoot').textContent = state.roomCode;
+    await startCamera();
+    supabase
+    .channel(state.roomCode)
+
+    .on(
+    'postgres_changes',
+    {
+    event:'*',
+    schema:'public',
+    table:'members'
+    },
+    payload=>{
+        pollRoom();
+    })
+
+    .on(
+    'postgres_changes',
+    {
+    event:'*',
+    schema:'public',
+    table:'photos'
+    },
+    payload=>{
+        pollRoom();
+    })
+
+    .on(
+    'postgres_changes',
+    {
+    event:'*',
+    schema:'public',
+    table:'captures'
+    },
+    payload=>{
+        pollRoom();
+    })
+
+    .subscribe();
+    pollRoom();
+  }
+
+  $('btn-copy').addEventListener('click', async () => {
+    const text = `Join our TETRATHON 2026 photobooth! Room code: ${state.roomCode}`;
+    try{
+      await navigator.clipboard.writeText(text);
+      const btn = $('btn-copy');
+      const old = btn.textContent;
+      btn.textContent = 'Copied ✓';
+      setTimeout(()=>{ btn.textContent = old; }, 1500);
+    }catch(e){ /* clipboard may be unavailable, ignore */ }
+  });
+
+  // ---------------- camera ----------------
+  async function startCamera(){
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user', width:{ideal:640}, height:{ideal:480} }, audio:false });
+      state.stream = stream;
+      $('video').srcObject = stream;
+      $('camDot').classList.remove('off');
+      $('camStatusText').textContent = 'camera ready';
+    }catch(e){
+      $('camStatusText').textContent = 'camera blocked — allow access & reload';
+    }
+  }
+
+  // ---------------- polling ----------------
+  async function pollRoom(){
+    const { data: members } = await supabase
+      .from("members")
+      .select("*")
+      .eq("room_code", state.roomCode)
+      .order("joined_at");
+
+    if(members){
+      state.members = members.map(m => ({
+        id: m.client_id,
+        name: m.name,
+        joinedAt: new Date(m.joined_at).getTime()
+      }));
+    }
+    renderMembers();
+
+    const { data: photos } = await supabase
+      .from("photos")
+      .select("*")
+      .eq("room_code", state.roomCode);
+
+    if(photos){
+      photos.forEach(p => {
+        state.photos[p.client_id] = p.image;
+      });
+    }
+    renderWaitlist();
+
+    // Check for a pending capture countdown
+    const { data: capture } = await supabase
+      .from("captures")
+      .select("*")
+      .eq("room_code", state.roomCode)
+      .single();
+
+    if(capture && capture.capture_at && capture.capture_at !== state.captureAt){
+      state.captureAt = capture.capture_at;
+      beginCountdownToTimestamp(capture.capture_at);
+    }
+
+    // If we've already captured, check whether all photos are in
+    if(state.hasCaptured){
+      const allIn = state.members.length > 0 && state.members.every(m => !!state.photos[m.id]);
+      if(allIn && !state._finished){
+        state._finished = true;
+        buildStrip();
+      }
+    }
+  }
+
+  function renderMembers(){
+    $('memberCount').textContent = state.members.length;
+    const wrap = $('memberList');
+    wrap.innerHTML = '';
+    state.members.forEach(m => {
+      const chip = document.createElement('div');
+      chip.className = 'member-chip' + (m.id===clientId ? ' you' : '');
+      chip.innerHTML = (m.id===clientId ? '<span class="check">●</span> ' : '') + escapeHtml(m.name) + (m.id===clientId ? ' (you)' : '');
+      wrap.appendChild(chip);
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ---------------- countdown / capture ----------------
+  $('btn-start-countdown').addEventListener('click', async () => {
+    const captureAt = Date.now() + 5000;
+    await supabase.from("captures").upsert({
+        room_code: state.roomCode,
+        capture_at: captureAt
+    });
+    state.captureAt = captureAt;
+    beginCountdownToTimestamp(captureAt);
+  });
+
+  function beginCountdownToTimestamp(ts){
+    if(state.countdownTimer) clearInterval(state.countdownTimer);
+    $('lobbyControls').classList.add('hidden');
+    const numEl = $('countdownNum');
+    numEl.classList.remove('hidden');
+
+    function tick(){
+      const remaining = Math.ceil((ts - Date.now())/1000);
+      if(remaining > 0){
+        numEl.textContent = remaining;
+      } else {
+        clearInterval(state.countdownTimer);
+        numEl.classList.add('hidden');
+        doCapture();
+      }
+    }
+    tick();
+    state.countdownTimer = setInterval(tick, 200);
+  }
+
+  async function doCapture(){
+    const flash = $('flash');
+    flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
+
+    const video = $('video');
+    const canvas = document.createElement('canvas');
+    const W = 480, H = 360;
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    // mirror to match the preview the user saw
+    ctx.translate(W,0); ctx.scale(-1,1);
+    try{
+      const vw = video.videoWidth || W, vh = video.videoHeight || H;
+      const srcRatio = vw/vh, dstRatio = W/H;
+      let sx,sy,sw,sh;
+      if(srcRatio > dstRatio){ sh = vh; sw = vh*dstRatio; sx = (vw-sw)/2; sy = 0; }
+      else{ sw = vw; sh = vw/dstRatio; sx = 0; sy = (vh-sh)/2; }
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, W, H);
+    }catch(e){
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.fillStyle = '#222'; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = '#888'; ctx.font = '16px sans-serif'; ctx.fillText('camera unavailable', 20, H/2);
+    }
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+    state.hasCaptured = true;
+    state.photos[clientId] = dataUrl;
+    await supabase.from("photos").upsert({
+        room_code: state.roomCode,
+        client_id: clientId,
+        image: dataUrl
+    });
+
+    $('captureWaiting').classList.remove('hidden');
+    renderWaitlist();
+    await refreshPhotosAndMaybeFinish();
+  }
+
+  async function refreshPhotosAndMaybeFinish(){
+    const { data: photos } = await supabase
+      .from("photos")
+      .select("*")
+      .eq("room_code", state.roomCode);
+    if(photos) photos.forEach(p => { state.photos[p.client_id] = p.image; });
+    renderWaitlist();
+    const allIn = state.members.length > 0 && state.members.every(m => !!state.photos[m.id]);
+    if(allIn && !state._finished){
+      state._finished = true;
+      buildStrip();
+    }
+  }
+
+  function renderWaitlist(){
+    const wrap = $('waitList');
+    wrap.innerHTML = '';
+    state.members.forEach(m => {
+      const row = document.createElement('div');
+      row.className = 'wait-row';
+      const ready = !!state.photos[m.id];
+      row.innerHTML = `<span>${escapeHtml(m.name)}${m.id===clientId?' (you)':''}</span><span class="badge ${ready?'ready':''}">${ready?'ready ✓':'waiting…'}</span>`;
+      wrap.appendChild(row);
+    });
+  }
+
+  $('btn-force-finish').addEventListener('click', async () => {
+    await refreshPhotosAndMaybeFinish();
+    if(!state._finished){
+      state._finished = true;
+      buildStrip();
+    }
+  });
+
+  $('btn-retake').addEventListener('click', async () => {
+    state._finished = false;
+    state.hasCaptured = false;
+    state.photos = {};
+    state.captureAt = null;
+    await supabase.from("captures").delete().eq("room_code", state.roomCode);
+    await supabase.from("photos").delete().eq("room_code", state.roomCode);
+    $('screen-result').classList.add('hidden');
+    $('screen-room').classList.remove('hidden');
+    $('captureWaiting').classList.add('hidden');
+    $('lobbyControls').classList.remove('hidden');
+  });
+
+  // ---------------- format picker ----------------
+  const formatLabels = { strip:'Your photobooth strip', polaroid:'Your polaroids', grid:'Your photo grid' };
+  document.querySelectorAll('.format-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.format-option').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.format = btn.dataset.format;
+      $('resultLabel').textContent = formatLabels[state.format] || 'Your photos';
+      renderFormat();
+    });
+  });
+
+  // ---------------- render dispatcher ----------------
+  async function renderFormat(){
+    try{
+      await document.fonts.load('400 20px "Fraunces"');
+      await document.fonts.load('700 12px "Inter"');
+    }catch(e){}
+    if(state.format === 'polaroid') await buildPolaroids();
+    else if(state.format === 'grid') await buildGrid();
+    else await buildStripCanvas();
+  }
+
+  async function buildStrip(){
+    if(state.pollTimer) clearInterval(state.pollTimer);
+    await renderFormat();
+    $('screen-room').classList.add('hidden');
+    $('screen-result').classList.remove('hidden');
+  }
+
+  // ---------------- FORMAT 1: STRIP ----------------
+  async function buildStripCanvas(){
+    const SPROCKET_ZONE = 26;
+    const PAD = 16;
+    const STRIP_W = 480;
+    const CONTENT_W = STRIP_W - SPROCKET_ZONE*2;
+    const PHOTO_W = CONTENT_W - PAD*2;
+    const PHOTO_H = Math.round(PHOTO_W * 3/4);
+    const HEADER_H = 128;
+    const FRAME_H = PHOTO_H + 40;
+    const FOOTER_H = 96;
+
+    const members = state.members.filter(m => state.photos[m.id]);
+    const total_H = HEADER_H + FRAME_H*members.length + FOOTER_H;
+
+    const canvas = $('stripCanvas');
+    canvas.width = STRIP_W;
+    canvas.height = total_H;
+    const ctx = canvas.getContext('2d');
+
+    // paper background
+    ctx.fillStyle = '#fafafa';
+    ctx.fillRect(0,0,STRIP_W,total_H);
+
+    // sprocket holes both sides
+    ctx.fillStyle = '#2a2722';
+    const holeR = 5, holeGap = 26;
+    for(let y = 16; y < total_H-10; y += holeGap){
+      circle(ctx, SPROCKET_ZONE/2, y, holeR);
+      circle(ctx, STRIP_W - SPROCKET_ZONE/2, y, holeR);
+    }
+    ctx.fillStyle = '#fafafa';
+
+    // header
+    ctx.fillStyle = '#2a2722';
+    ctx.textAlign = 'center';
+    ctx.font = '400 30px "Fraunces", serif';
+    ctx.fillText('Tetrathon 2026', STRIP_W/2, 54);
+    ctx.font = '700 11px "Inter", sans-serif';
+    ctx.fillStyle = '#666666';
+    ctx.fillText('TEAM PHOTOBOOTH', STRIP_W/2, 72);
+
+    ctx.strokeStyle = '#2a2722';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(STRIP_W/2 - 26, 86);
+    ctx.lineTo(STRIP_W/2 + 26, 86);
+    ctx.stroke();
+
+    ctx.font = '400 19px "Fraunces", serif';
+    ctx.fillStyle = '#2a2722';
+    ctx.fillText(truncate(state.teamName, 28), STRIP_W/2, 112);
+
+    // frames
+    let y = HEADER_H;
+    for(let i=0;i<members.length;i++){
+      const m = members[i];
+      const img = await loadImage(state.photos[m.id]);
+      const px = SPROCKET_ZONE + PAD;
+      const py = y + 8;
+
+      ctx.fillStyle = '#fafafa';
+      ctx.fillRect(px-4, py-4, PHOTO_W+8, PHOTO_H+8);
+      ctx.strokeStyle = '#2a2722';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px-4, py-4, PHOTO_W+8, PHOTO_H+8);
+      if(img) ctx.drawImage(img, px, py, PHOTO_W, PHOTO_H);
+
+      ctx.textAlign = 'left';
+      ctx.font = '700 11px "Inter", sans-serif';
+      ctx.fillStyle = '#666666';
+      ctx.fillText(pad2(i+1) + ' / ' + pad2(members.length), px, py + PHOTO_H + 26);
+
+      ctx.textAlign = 'right';
+      ctx.font = '400 16px "Fraunces", serif';
+      ctx.fillStyle = '#2a2722';
+      ctx.fillText(truncate(m.name, 20), px + PHOTO_W, py + PHOTO_H + 26);
+
+      y += FRAME_H;
+    }
+
+    // footer
+    ctx.textAlign = 'center';
+    ctx.font = '700 11px "Inter", sans-serif';
+    ctx.fillStyle = '#666666';
+    const dateStr = new Date().toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+    ctx.fillText((state.roomCode + '  —  ' + dateStr).toUpperCase(), STRIP_W/2, total_H - 56);
+    ctx.font = '400 11px "Inter", sans-serif';
+    ctx.fillText('CAPTURED LIVE, FROM EVERYWHERE', STRIP_W/2, total_H - 36);
+
+    ctx.strokeStyle = '#2a2722';
+    ctx.lineWidth = 1;
+    const bw = 90, bh = 26;
+    ctx.strokeRect(STRIP_W/2 - bw/2, total_H - 24, bw, bh);
+    ctx.font = '700 10px "Inter", sans-serif';
+    ctx.fillStyle = '#2a2722';
+    ctx.fillText('#TETRATHON26', STRIP_W/2, total_H - 8);
+  }
+
+  // ---------------- FORMAT 2: POLAROIDS ----------------
+  async function buildPolaroids(){
+    const members = state.members.filter(m => state.photos[m.id]);
+    const count = members.length || 1;
+
+    // Polaroid card dimensions
+    const CARD_PHOTO_W = 320;
+    const CARD_PHOTO_H = 240;
+    const CARD_PAD_SIDE = 24;
+    const CARD_PAD_TOP = 24;
+    const CARD_PAD_BOTTOM = 64;
+    const CARD_W = CARD_PHOTO_W + CARD_PAD_SIDE * 2;
+    const CARD_H = CARD_PHOTO_H + CARD_PAD_TOP + CARD_PAD_BOTTOM;
+
+    // Layout: arrange polaroids with slight scatter
+    const CANVAS_W = 560;
+    const HEADER = 100;
+    const FOOTER = 80;
+    // Stack vertically with overlap and rotation
+    const STACK_GAP = CARD_H * 0.7;
+    const CANVAS_H = HEADER + STACK_GAP * count + (CARD_H - STACK_GAP) + FOOTER;
+
+    const canvas = $('stripCanvas');
+    canvas.width = CANVAS_W;
+    canvas.height = CANVAS_H;
+    const ctx = canvas.getContext('2d');
+
+    // Warm paper background
+    ctx.fillStyle = '#f5f0e8';
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+    // Subtle grain texture
+    ctx.fillStyle = 'rgba(0,0,0,0.015)';
+    for(let i = 0; i < 800; i++){
+      const gx = Math.random() * CANVAS_W;
+      const gy = Math.random() * CANVAS_H;
+      ctx.fillRect(gx, gy, 1, 1);
+    }
+
+    // Header
+    ctx.fillStyle = '#2a2722';
+    ctx.textAlign = 'center';
+    ctx.font = '400 28px "Fraunces", serif';
+    ctx.fillText('Tetrathon 2026', CANVAS_W / 2, 46);
+    ctx.font = '700 11px "Inter", sans-serif';
+    ctx.fillStyle = '#666666';
+    ctx.fillText(truncate(state.teamName, 28).toUpperCase(), CANVAS_W / 2, 68);
+
+    // Seed rotations deterministically from room code
+    let seed = 0;
+    for(let i = 0; i < (state.roomCode||'').length; i++) seed += state.roomCode.charCodeAt(i);
+    function seededRand(){ seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+
+    for(let i = 0; i < members.length; i++){
+      const m = members[i];
+      const img = await loadImage(state.photos[m.id]);
+
+      const cx = CANVAS_W / 2;
+      const cy = HEADER + STACK_GAP * i + CARD_H / 2;
+      const angle = (seededRand() - 0.5) * 0.12; // ±~3.5°
+      const offsetX = (seededRand() - 0.5) * 20;
+
+      ctx.save();
+      ctx.translate(cx + offsetX, cy);
+      ctx.rotate(angle);
+
+      // Card shadow
+      ctx.shadowColor = 'rgba(0,0,0,0.12)';
+      ctx.shadowBlur = 16;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 4;
+
+      // White card
+      const x0 = -CARD_W / 2;
+      const y0 = -CARD_H / 2;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x0, y0, CARD_W, CARD_H);
+
+      // Reset shadow for photo
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+
+      // Photo
+      if(img){
+        ctx.drawImage(img, x0 + CARD_PAD_SIDE, y0 + CARD_PAD_TOP, CARD_PHOTO_W, CARD_PHOTO_H);
+      } else {
+        ctx.fillStyle = '#ddd';
+        ctx.fillRect(x0 + CARD_PAD_SIDE, y0 + CARD_PAD_TOP, CARD_PHOTO_W, CARD_PHOTO_H);
+      }
+
+      // Thin border around photo area
+      ctx.strokeStyle = '#e0ddd8';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x0 + CARD_PAD_SIDE, y0 + CARD_PAD_TOP, CARD_PHOTO_W, CARD_PHOTO_H);
+
+      // Name in the bottom margin
+      ctx.fillStyle = '#2a2722';
+      ctx.textAlign = 'center';
+      ctx.font = '400 18px "Fraunces", serif';
+      ctx.fillText(truncate(m.name, 22), 0, y0 + CARD_PAD_TOP + CARD_PHOTO_H + 36);
+
+      ctx.restore();
+    }
+
+    // Footer
+    ctx.textAlign = 'center';
+    ctx.font = '700 10px "Inter", sans-serif';
+    ctx.fillStyle = '#999';
+    const dateStr = new Date().toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+    ctx.fillText((state.roomCode + '  ·  ' + dateStr + '  ·  #TETRATHON26').toUpperCase(), CANVAS_W / 2, CANVAS_H - 36);
+  }
+
+  // ---------------- FORMAT 3: GRID ----------------
+  async function buildGrid(){
+    const members = state.members.filter(m => state.photos[m.id]);
+    const count = members.length || 1;
+
+    const COLS = count <= 1 ? 1 : count <= 4 ? 2 : 3;
+    const ROWS = Math.ceil(count / COLS);
+    const CELL_W = 240;
+    const CELL_H = 180;
+    const GAP = 12;
+    const PAD = 28;
+    const HEADER_H = 100;
+    const LABEL_H = 32;
+    const FOOTER_H = 64;
+
+    const GRID_W = COLS * CELL_W + (COLS - 1) * GAP;
+    const GRID_H = ROWS * (CELL_H + LABEL_H) + (ROWS - 1) * GAP;
+    const CANVAS_W = GRID_W + PAD * 2;
+    const CANVAS_H = HEADER_H + GRID_H + FOOTER_H;
+
+    const canvas = $('stripCanvas');
+    canvas.width = CANVAS_W;
+    canvas.height = CANVAS_H;
+    const ctx = canvas.getContext('2d');
+
+    // Background
+    ctx.fillStyle = '#fafafa';
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+    // Border
+    ctx.strokeStyle = '#2a2722';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(1, 1, CANVAS_W - 2, CANVAS_H - 2);
+
+    // Header
+    ctx.fillStyle = '#2a2722';
+    ctx.textAlign = 'center';
+    ctx.font = '400 26px "Fraunces", serif';
+    ctx.fillText('Tetrathon 2026', CANVAS_W / 2, 42);
+    ctx.font = '700 11px "Inter", sans-serif';
+    ctx.fillStyle = '#666666';
+    ctx.fillText(truncate(state.teamName, 28).toUpperCase(), CANVAS_W / 2, 62);
+
+    // Divider line
+    ctx.strokeStyle = '#2a2722';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PAD, 78);
+    ctx.lineTo(CANVAS_W - PAD, 78);
+    ctx.stroke();
+
+    // Grid cells
+    for(let i = 0; i < members.length; i++){
+      const m = members[i];
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const img = await loadImage(state.photos[m.id]);
+
+      const cx = PAD + col * (CELL_W + GAP);
+      const cy = HEADER_H + row * (CELL_H + LABEL_H + GAP);
+
+      // Photo
+      if(img){
+        ctx.drawImage(img, cx, cy, CELL_W, CELL_H);
+      } else {
+        ctx.fillStyle = '#e8e5e0';
+        ctx.fillRect(cx, cy, CELL_W, CELL_H);
+      }
+
+      // Border
+      ctx.strokeStyle = '#2a2722';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(cx, cy, CELL_W, CELL_H);
+
+      // Name label
+      ctx.fillStyle = '#2a2722';
+      ctx.textAlign = 'center';
+      ctx.font = '400 14px "Fraunces", serif';
+      ctx.fillText(truncate(m.name, 20), cx + CELL_W / 2, cy + CELL_H + 20);
+
+      // Index
+      ctx.textAlign = 'left';
+      ctx.font = '700 9px "Inter", sans-serif';
+      ctx.fillStyle = '#999';
+      ctx.fillText(pad2(i + 1), cx + 2, cy + CELL_H + 20);
+    }
+
+    // Footer
+    ctx.textAlign = 'center';
+    ctx.font = '700 10px "Inter", sans-serif';
+    ctx.fillStyle = '#666666';
+    const dateStr = new Date().toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+    ctx.fillText((state.roomCode + '  —  ' + dateStr).toUpperCase(), CANVAS_W / 2, CANVAS_H - 34);
+    ctx.font = '400 10px "Inter", sans-serif';
+    ctx.fillText('#TETRATHON26', CANVAS_W / 2, CANVAS_H - 18);
+  }
+
+  function circle(ctx,x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); }
+  function pad2(n){ return n<10 ? '0'+n : ''+n; }
+  function truncate(s,n){ s = s||''; return s.length>n ? s.slice(0,n-1)+'…' : s; }
+  function loadImage(src){
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+
+  $('btn-download').addEventListener('click', () => {
+    const canvas = $('stripCanvas');
+    const link = document.createElement('a');
+    link.download = 'tetrathon-2026-' + (state.teamName||'team').toLowerCase().replace(/[^a-z0-9]+/g,'-') + '-' + state.format + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+
+})();
+</script>
+</body>
+</html>
