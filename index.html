@@ -307,7 +307,16 @@
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   // ---------------- state ----------------
   const clientId = 'm_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
-  const STALE_MS = 20000;      // a member with no heartbeat in this window is treated as "left"
+  // Staleness is now detected entirely by change-detection, not by reading or
+  // comparing any timestamp. Each poll snapshots every member row's raw
+  // `joined_at` string as an opaque value — never parsed into a Date, never
+  // compared against "now" on any device. If a member's value is identical
+  // across STALE_POLLS consecutive polls, their heartbeat has stopped landing
+  // and we drop them locally. Because the only comparison is "did this exact
+  // string change since the last time I, this one client, fetched it", the
+  // result can never depend on whose clock is fast or slow — there is no
+  // clock in the comparison at all.
+  const STALE_POLLS = 5;        // consecutive no-change polls before a member is treated as "left"
   const HEARTBEAT_MS = 5000;   // how often each client re-announces itself
   let state = {
     roomCode: null,
@@ -323,7 +332,9 @@
     members: [],       // [{id,name,joinedAt}]
     photos: {},         // id -> dataURL
     liveFrames: {},      // id -> { image, name, ts }
-    firstSeen: {},        // id -> earliest ms timestamp we've seen them, for stable ordering
+    firstSeen: {},        // id -> earliest ms (local clock) we've seen them, for stable ordering only — never compared to anything from the server
+    lastRowSig: {},        // id -> last observed raw joined_at string, used only for equality checks
+    pollMisses: {},          // id -> consecutive polls where lastRowSig didn't change
     broadcastTimer: null,
   };
   let roomChannel = null;
@@ -638,42 +649,67 @@
     if(!state.roomCode) return;
     const myToken = ++pollToken;
 
-    // Ask Postgres itself who's "active" (heartbeat within STALE_MS),
-    // comparing timestamps entirely server-side. This deliberately avoids
-    // re-parsing the returned joined_at string with `new Date()` on the
-    // client for correctness — a timestamp without an explicit timezone
-    // round-trips through JS's Date parser as *local* time, not UTC, which
-    // silently skews every comparison (by a browser's UTC offset) and can
-    // make every row look permanently stale. Filtering with `.gte()` keeps
-    // the comparison inside Postgres, which is internally consistent
-    // regardless of how the column is typed or displayed.
-    const cutoffIso = new Date(Date.now() - STALE_MS).toISOString();
+    // Fetch every row for the room, unfiltered — no cutoff, no timestamp
+    // comparison of any kind. Staleness is decided below, purely by whether
+    // each row's value has changed since the last time this same client
+    // fetched it.
     const { data: rows, error: rowsErr } = await supabase
       .from("members")
       .select("*")
       .eq("room_code", state.roomCode)
-      .gte("joined_at", cutoffIso)
       .order("joined_at");
 
     if(myToken !== pollToken) return; // superseded by a newer poll — drop this result
 
     if(rows && !rowsErr){
       const nowLocal = Date.now();
+      const seenIds = {};
+
       rows.forEach(r => {
+        const id = r.client_id;
+        seenIds[id] = true;
+
         // Order key is purely local ("when did I first see this person"),
-        // never derived from parsing the server's timestamp — sidesteps
-        // the same timezone pitfall for sort stability too.
-        if(!state.firstSeen[r.client_id]) state.firstSeen[r.client_id] = nowLocal;
+        // never derived from parsing the server's timestamp.
+        if(!state.firstSeen[id]) state.firstSeen[id] = nowLocal;
+
+        // Change-detection: compare the raw joined_at string to what we saw
+        // on our previous poll. We never parse it, never turn it into a
+        // Date, never diff it against Date.now() — it's treated as an
+        // opaque token. Our own row is exempt: we know we're here right
+        // now, so we never let our own heartbeat cadence race our own
+        // polling cadence into evicting ourselves.
+        if(id === clientId){
+          state.pollMisses[id] = 0;
+        } else if(state.lastRowSig[id] === undefined){
+          // first time we've ever seen this row — nothing to compare yet
+          state.pollMisses[id] = 0;
+        } else if(state.lastRowSig[id] === r.joined_at){
+          state.pollMisses[id] = (state.pollMisses[id] || 0) + 1;
+        } else {
+          state.pollMisses[id] = 0; // value changed — a fresh heartbeat landed
+        }
+        state.lastRowSig[id] = r.joined_at;
       });
 
-      const newList = rows
+      // Anyone whose row simply vanished from the result set entirely
+      // (deleted via leaveRoomBestEffort) is gone immediately, no waiting.
+      Object.keys(state.lastRowSig).forEach(id => {
+        if(!seenIds[id]){
+          delete state.lastRowSig[id];
+          delete state.pollMisses[id];
+        }
+      });
+
+      const active = rows.filter(r => r.client_id === clientId || (state.pollMisses[r.client_id] || 0) < STALE_POLLS);
+
+      const newList = active
         .map(r => ({ id: r.client_id, name: r.name, joinedAt: state.firstSeen[r.client_id] || nowLocal }))
         .sort((a, b) => a.joinedAt - b.joinedAt);
 
       // Self-heal: we know for certain we're in the room right now (we're
       // the one running this code), so never let a slow/partial response
-      // make us vanish from our own view — worst case is a stale server
-      // row for ourselves, never zero.
+      // make us vanish from our own view.
       if(!newList.find(m => m.id === clientId)){
         newList.unshift({ id: clientId, name: state.myName, joinedAt: state.firstSeen[clientId] || nowLocal });
       }
