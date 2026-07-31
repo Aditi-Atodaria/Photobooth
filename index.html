@@ -126,7 +126,7 @@
     position:relative; width:100%; aspect-ratio:4/3; background:var(--color-headline-ink);
     border-radius:0; overflow:hidden; border:1px solid var(--color-headline-ink); margin-bottom:16px;
   }
-  .cam-wrap video{ width:100%; height:100%; object-fit:cover; transform:scaleX(-1); display:block; filter:grayscale(1) contrast(1.05); }
+  .cam-wrap video{ width:100%; height:100%; object-fit:cover; transform:scaleX(-1); display:block; filter:contrast(1.05); }
   .cam-status{
     position:absolute; top:10px; left:10px; display:flex; align-items:center; gap:6px;
     background:var(--color-paper); padding:4px 8px; border-radius:12px; font-family:var(--font-neue-montreal); font-weight:400; font-size:12px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-headline-ink);
@@ -166,16 +166,16 @@
   .live-tile .live-dot.stale{ background:var(--color-pebble); }
   .live-grid-empty{ margin:0 0 18px; }
 
-  /* ---------- format picker ---------- */
-  .format-picker{ display:flex; gap:0; margin-bottom:18px; border:1px solid var(--color-headline-ink); border-radius:12px; overflow:hidden; }
-  .format-option{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:14px 8px 12px; cursor:pointer; background:transparent; border:none; border-right:1px solid var(--color-hairline); font-family:var(--font-neue-montreal); transition:background .15s ease, color .15s ease; }
-  .format-option:last-child{ border-right:none; }
-  .format-option .fmt-icon{ font-size:20px; line-height:1; }
-  .format-option .fmt-label{ font-weight:700; font-size:11px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-ash); transition:color .15s ease; }
-  .format-option:hover{ background:var(--surface-2); }
-  .format-option.active{ background:var(--color-headline-ink); }
-  .format-option.active .fmt-label{ color:var(--color-paper); }
-  .format-option.active .fmt-icon{ filter:brightness(10); }
+  /* ---------- format picker / filter picker (shared look, separate classes so their JS handlers never collide) ---------- */
+  .format-picker, .filter-picker{ display:flex; gap:0; margin-bottom:18px; border:1px solid var(--color-headline-ink); border-radius:12px; overflow:hidden; }
+  .format-option, .filter-option{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:14px 8px 12px; cursor:pointer; background:transparent; border:none; border-right:1px solid var(--color-hairline); font-family:var(--font-neue-montreal); transition:background .15s ease, color .15s ease; }
+  .format-option:last-child, .filter-option:last-child{ border-right:none; }
+  .format-option .fmt-icon, .filter-option .fmt-icon{ font-size:20px; line-height:1; }
+  .format-option .fmt-label, .filter-option .fmt-label{ font-weight:700; font-size:11px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-ash); transition:color .15s ease; }
+  .format-option:hover, .filter-option:hover{ background:var(--surface-2); }
+  .format-option.active, .filter-option.active{ background:var(--color-headline-ink); }
+  .format-option.active .fmt-label, .filter-option.active .fmt-label{ color:var(--color-paper); }
+  .format-option.active .fmt-icon, .filter-option.active .fmt-icon{ filter:brightness(10); }
 
   /* ---------- strip ---------- */
   .strip-wrap{ display:flex; justify-content:center; margin-bottom:18px; }
@@ -258,6 +258,13 @@
         <div class="countdown-num hidden" id="countdownNum"></div>
       </div>
 
+      <div class="section-label">Your photo style</div>
+      <div class="filter-picker" id="filterPicker">
+        <button class="filter-option active" data-filter="bw" id="btn-filter-bw"><span class="fmt-icon">◐</span><span class="fmt-label">Black &amp; white</span></button>
+        <button class="filter-option" data-filter="color" id="btn-filter-color"><span class="fmt-icon">●</span><span class="fmt-label">Color</span></button>
+      </div>
+      <p class="hint" style="margin-top:-10px;">This only changes your own shot — everyone picks their own look.</p>
+
       <div class="section-label">Live from the room</div>
       <div class="live-grid" id="liveGrid"></div>
 
@@ -329,6 +336,7 @@
     captureAt: null,
     hasCaptured: false,
     format: 'strip',   // 'strip' | 'polaroid' | 'grid'
+    filterMode: 'bw',  // 'bw' | 'color' — this guest's personal choice for their own capture
     members: [],       // [{id,name,joinedAt}]
     photos: {},         // id -> dataURL
     liveFrames: {},      // id -> { image, name, ts }
@@ -617,6 +625,22 @@
     }catch(e){ /* clipboard may be unavailable, ignore */ }
   });
 
+  // ---------------- photo filter (personal, per-guest choice) ----------------
+  function applyFilterToVideo(){
+    const video = $('video');
+    if(!video) return;
+    video.style.filter = state.filterMode === 'bw' ? 'grayscale(1) contrast(1.05)' : 'contrast(1.05)';
+  }
+
+  document.querySelectorAll('#filterPicker .filter-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#filterPicker .filter-option').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.filterMode = btn.dataset.filter;
+      applyFilterToVideo();
+    });
+  });
+
   // ---------------- camera ----------------
   async function startCamera(){
     try{
@@ -625,6 +649,7 @@
       $('video').srcObject = stream;
       $('camDot').classList.remove('off');
       $('camStatusText').textContent = 'camera ready';
+      applyFilterToVideo();
     }catch(e){
       $('camStatusText').textContent = 'camera blocked — allow access & reload';
     }
@@ -834,6 +859,22 @@
       ctx.fillStyle = '#222'; ctx.fillRect(0,0,W,H);
       ctx.fillStyle = '#888'; ctx.font = '16px sans-serif'; ctx.fillText('camera unavailable', 20, H/2);
     }
+
+    // The <video> element's CSS filter only affects the live preview on
+    // screen — canvas drawImage() always pulls the raw, unfiltered frame.
+    // So black & white has to be baked into the actual pixels here if the
+    // guest picked it; otherwise we leave the frame in color untouched.
+    if(state.filterMode === 'bw'){
+      ctx.setTransform(1,0,0,1,0,0);
+      const imgData = ctx.getImageData(0,0,W,H);
+      const d = imgData.data;
+      for(let i=0;i<d.length;i+=4){
+        const gray = d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114;
+        d[i] = d[i+1] = d[i+2] = gray;
+      }
+      ctx.putImageData(imgData,0,0);
+    }
+
     const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
     state.hasCaptured = true;
     state.photos[clientId] = dataUrl;
