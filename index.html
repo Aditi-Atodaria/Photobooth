@@ -162,9 +162,9 @@
   .live-tile.offline{ display:flex; align-items:center; justify-content:center; }
   .live-tile .live-tile-placeholder{ color:var(--color-pebble); font-family:var(--font-neue-montreal); font-size:10px; letter-spacing:-0.12px; text-transform:uppercase; text-align:center; padding:6px; line-height:1.4; }
   .live-tile .live-tile-name{ position:absolute; bottom:0; left:0; right:0; background:rgba(42,39,34,.75); color:var(--color-paper); font-family:var(--font-neue-montreal); font-size:10px; font-weight:700; letter-spacing:-0.1px; text-transform:uppercase; padding:3px 5px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .live-tile .live-dot{ position:absolute; top:5px; right:5px; width:6px; height:6px; border-radius:50%; background:#4caf50; box-shadow:0 0 0 2px rgba(42,39,34,.5); }
+  .live-tile .live-dot{ position:absolute; top:5px; right:5px; width:6px; height:6px; border-radius:50%; background:var(--color-headline-ink); border:1px solid var(--color-paper); }
   .live-tile .live-dot.stale{ background:var(--color-pebble); }
-  .live-grid-empty{ margin:0 0 18px; }
+  .live-grid-empty{ grid-column: 1 / -1; margin:0 0 18px; }
 
   /* ---------- format picker / filter picker (shared look, separate classes so their JS handlers never collide) ---------- */
   .format-picker, .filter-picker{ display:flex; gap:0; margin-bottom:18px; border:1px solid var(--color-headline-ink); border-radius:12px; overflow:hidden; }
@@ -672,6 +672,17 @@
 
   async function pollRoom(){
     if(!state.roomCode) return;
+    // Once the strip/polaroids/grid has been finalized, we're done syncing —
+    // the realtime subscription stays open (so a Retake can resume it), but
+    // it must not keep mutating state.members/state.photos in the
+    // background. Without this guard, a much later realtime event (even one
+    // unrelated to this room — the subscription isn't filtered by
+    // room_code) could still trigger a poll that re-prunes a teammate who'd
+    // gone quiet for a few cycles, silently shrinking the already-built
+    // collage down to whoever's photo happens to still be in state at that
+    // moment — typically just yourself, since your own row is exempt from
+    // pruning.
+    if(state._finished) return;
     const myToken = ++pollToken;
 
     // Fetch every row for the room, unfiltered — no cutoff, no timestamp
@@ -935,6 +946,13 @@
     $('captureWaiting').classList.add('hidden');
     $('lobbyControls').classList.remove('hidden');
     startFrameBroadcast();
+
+    // buildStrip() stopped the fallback poll interval once the previous
+    // strip finalized; bring it back so the room stays in sync for the
+    // next round instead of relying solely on realtime events.
+    if(state.pollTimer) clearInterval(state.pollTimer);
+    state.pollTimer = setInterval(pollRoom, 4000);
+    pollRoom();
   });
 
   // ---------------- format picker ----------------
