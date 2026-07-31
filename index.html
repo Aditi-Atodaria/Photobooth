@@ -314,16 +314,20 @@
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   // ---------------- state ----------------
   const clientId = 'm_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
-  // Staleness is now detected entirely by change-detection, not by reading or
-  // comparing any timestamp. Each poll snapshots every member row's raw
+  // Staleness is detected by change-detection, not by reading or comparing
+  // any timestamp value. Each poll snapshots every member row's raw
   // `joined_at` string as an opaque value — never parsed into a Date, never
-  // compared against "now" on any device. If a member's value is identical
-  // across STALE_POLLS consecutive polls, their heartbeat has stopped landing
-  // and we drop them locally. Because the only comparison is "did this exact
-  // string change since the last time I, this one client, fetched it", the
-  // result can never depend on whose clock is fast or slow — there is no
-  // clock in the comparison at all.
-  const STALE_POLLS = 5;        // consecutive no-change polls before a member is treated as "left"
+  // compared against another device's clock. A member is only dropped once
+  // their value has sat unchanged for STALE_MS of *this client's own*
+  // elapsed wall-clock time — never a count of polls. That distinction
+  // matters: poll frequency is driven by realtime events from the whole
+  // room (and, before it was filtered above, briefly by every other room
+  // too), so a "consecutive polls" version could rack up many checks within
+  // a second or two under real traffic and evict someone before their next
+  // heartbeat was even due. Timing it against this device's own clock,
+  // compared only to this same device's own previous reading, is immune to
+  // however often polling happens to occur.
+  const STALE_MS = 20000;      // elapsed local time with no change before a member is treated as "left"
   const HEARTBEAT_MS = 5000;   // how often each client re-announces itself
   let state = {
     roomCode: null,
@@ -342,7 +346,7 @@
     liveFrames: {},      // id -> { image, name, ts }
     firstSeen: {},        // id -> earliest ms (local clock) we've seen them, for stable ordering only — never compared to anything from the server
     lastRowSig: {},        // id -> last observed raw joined_at string, used only for equality checks
-    pollMisses: {},          // id -> consecutive polls where lastRowSig didn't change
+    lastChangedAt: {},      // id -> local ms (this device's own clock) when we last saw lastRowSig actually change
     broadcastTimer: null,
   };
   let roomChannel = null;
@@ -431,13 +435,16 @@
     .channel(state.roomCode, { config: { broadcast: { self: false } } })
 
     // Any change to the roster (someone joining, or re-announcing via
-    // heartbeat) pushes a refresh to everyone in the room.
+    // heartbeat) pushes a refresh to everyone in the room. Filtered to this
+    // room's code so a busy hackathon full of other teams' rooms doesn't
+    // flood every client with irrelevant events.
     .on(
     'postgres_changes',
     {
     event:'*',
     schema:'public',
-    table:'members'
+    table:'members',
+    filter: 'room_code=eq.' + state.roomCode
     },
     payload=>{
         schedulePoll();
@@ -448,7 +455,8 @@
     {
     event:'*',
     schema:'public',
-    table:'photos'
+    table:'photos',
+    filter: 'room_code=eq.' + state.roomCode
     },
     payload=>{
         schedulePoll();
@@ -459,7 +467,8 @@
     {
     event:'*',
     schema:'public',
-    table:'captures'
+    table:'captures',
+    filter: 'room_code=eq.' + state.roomCode
     },
     payload=>{
         schedulePoll();
@@ -727,20 +736,17 @@
 
         // Change-detection: compare the raw joined_at string to what we saw
         // on our previous poll. We never parse it, never turn it into a
-        // Date, never diff it against Date.now() — it's treated as an
-        // opaque token. Our own row is exempt: we know we're here right
-        // now, so we never let our own heartbeat cadence race our own
-        // polling cadence into evicting ourselves.
+        // Date. When it changes, we stamp *our own* clock — never the
+        // server's — as "last changed". Our own row is exempt: we know
+        // we're here right now, so we never let our own heartbeat cadence
+        // race our own polling cadence into evicting ourselves.
         if(id === clientId){
-          state.pollMisses[id] = 0;
-        } else if(state.lastRowSig[id] === undefined){
-          // first time we've ever seen this row — nothing to compare yet
-          state.pollMisses[id] = 0;
-        } else if(state.lastRowSig[id] === r.joined_at){
-          state.pollMisses[id] = (state.pollMisses[id] || 0) + 1;
-        } else {
-          state.pollMisses[id] = 0; // value changed — a fresh heartbeat landed
+          state.lastChangedAt[id] = nowLocal;
+        } else if(state.lastRowSig[id] === undefined || state.lastRowSig[id] !== r.joined_at){
+          state.lastChangedAt[id] = nowLocal; // first sighting, or a fresh heartbeat landed
         }
+        // else: value unchanged since our last poll — leave lastChangedAt
+        // where it was, so elapsed time since the last real change keeps growing.
         state.lastRowSig[id] = r.joined_at;
       });
 
@@ -749,11 +755,11 @@
       Object.keys(state.lastRowSig).forEach(id => {
         if(!seenIds[id]){
           delete state.lastRowSig[id];
-          delete state.pollMisses[id];
+          delete state.lastChangedAt[id];
         }
       });
 
-      const active = rows.filter(r => r.client_id === clientId || (state.pollMisses[r.client_id] || 0) < STALE_POLLS);
+      const active = rows.filter(r => r.client_id === clientId || (nowLocal - (state.lastChangedAt[r.client_id] || nowLocal)) < STALE_MS);
 
       const newList = active
         .map(r => ({ id: r.client_id, name: r.name, joinedAt: state.firstSeen[r.client_id] || nowLocal }))
