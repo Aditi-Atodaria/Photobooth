@@ -307,7 +307,7 @@
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   // ---------------- state ----------------
   const clientId = 'm_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
-  const STALE_MS = 15000;      // a member with no heartbeat in this window is treated as "left"
+  const STALE_MS = 20000;      // a member with no heartbeat in this window is treated as "left"
   const HEARTBEAT_MS = 5000;   // how often each client re-announces itself
   let state = {
     roomCode: null,
@@ -412,7 +412,7 @@
     .channel(state.roomCode, { config: { broadcast: { self: false } } })
 
     // Any change to the roster (someone joining, or re-announcing via
-    // heartbeat) pushes an instant refresh to everyone in the room.
+    // heartbeat) pushes a refresh to everyone in the room.
     .on(
     'postgres_changes',
     {
@@ -421,7 +421,7 @@
     table:'members'
     },
     payload=>{
-        pollRoom();
+        schedulePoll();
     })
 
     .on(
@@ -432,7 +432,7 @@
     table:'photos'
     },
     payload=>{
-        pollRoom();
+        schedulePoll();
     })
 
     .on(
@@ -443,7 +443,7 @@
     table:'captures'
     },
     payload=>{
-        pollRoom();
+        schedulePoll();
     })
 
     // live low-res camera snapshots from other members in the room
@@ -470,6 +470,20 @@
     // stale, for every client in the room, not just the one that left.
     if(state.pollTimer) clearInterval(state.pollTimer);
     state.pollTimer = setInterval(pollRoom, 4000);
+
+    // Mobile browsers (and background tabs generally) throttle or fully
+    // suspend setInterval timers, which can silently starve both the
+    // heartbeat and the poll loop — e.g. someone switches away to share
+    // the room code over chat. Catch up immediately the moment the tab
+    // is visible again instead of waiting on the next throttled tick.
+    document.addEventListener('visibilitychange', onVisibilityChange);
+  }
+
+  function onVisibilityChange(){
+    if(document.visibilityState === 'visible' && state.roomCode){
+      heartbeat();
+      pollRoom();
+    }
   }
 
   // ---------------- heartbeat (roster membership) ----------------
@@ -605,31 +619,64 @@
     }
   }
 
-  // ---------------- polling (roster with staleness filter, photos, capture countdown) ----------------
+  // ---------------- polling (roster with server-side staleness filter, photos, capture countdown) ----------------
+  // Debounce: many rapid DB events (e.g. every member's heartbeat firing a
+  // postgres_changes event for everyone) shouldn't each trigger their own
+  // full round trip — coalesce bursts into a single poll shortly after.
+  let pollDebounceTimer = null;
+  function schedulePoll(){
+    if(pollDebounceTimer) clearTimeout(pollDebounceTimer);
+    pollDebounceTimer = setTimeout(pollRoom, 250);
+  }
+
+  // Guards against out-of-order network responses: if a newer poll has
+  // already started by the time an older one's response comes back, the
+  // older one is discarded instead of overwriting fresher state.
+  let pollToken = 0;
+
   async function pollRoom(){
-    const { data: rows } = await supabase
+    if(!state.roomCode) return;
+    const myToken = ++pollToken;
+
+    // Ask Postgres itself who's "active" (heartbeat within STALE_MS),
+    // comparing timestamps entirely server-side. This deliberately avoids
+    // re-parsing the returned joined_at string with `new Date()` on the
+    // client for correctness — a timestamp without an explicit timezone
+    // round-trips through JS's Date parser as *local* time, not UTC, which
+    // silently skews every comparison (by a browser's UTC offset) and can
+    // make every row look permanently stale. Filtering with `.gte()` keeps
+    // the comparison inside Postgres, which is internally consistent
+    // regardless of how the column is typed or displayed.
+    const cutoffIso = new Date(Date.now() - STALE_MS).toISOString();
+    const { data: rows, error: rowsErr } = await supabase
       .from("members")
       .select("*")
       .eq("room_code", state.roomCode)
+      .gte("joined_at", cutoffIso)
       .order("joined_at");
 
-    if(rows){
-      const now = Date.now();
-      // A row counts as "active" only if its heartbeat is recent; anyone
-      // whose tab is closed simply stops refreshing theirs and ages out.
-      const active = rows.filter(r => (now - new Date(r.joined_at).getTime()) < STALE_MS);
+    if(myToken !== pollToken) return; // superseded by a newer poll — drop this result
 
-      active.forEach(r => {
-        if(!state.firstSeen[r.client_id]) state.firstSeen[r.client_id] = new Date(r.joined_at).getTime();
+    if(rows && !rowsErr){
+      const nowLocal = Date.now();
+      rows.forEach(r => {
+        // Order key is purely local ("when did I first see this person"),
+        // never derived from parsing the server's timestamp — sidesteps
+        // the same timezone pitfall for sort stability too.
+        if(!state.firstSeen[r.client_id]) state.firstSeen[r.client_id] = nowLocal;
       });
 
-      const newList = active
-        .map(r => ({
-          id: r.client_id,
-          name: r.name,
-          joinedAt: state.firstSeen[r.client_id] || new Date(r.joined_at).getTime()
-        }))
+      const newList = rows
+        .map(r => ({ id: r.client_id, name: r.name, joinedAt: state.firstSeen[r.client_id] || nowLocal }))
         .sort((a, b) => a.joinedAt - b.joinedAt);
+
+      // Self-heal: we know for certain we're in the room right now (we're
+      // the one running this code), so never let a slow/partial response
+      // make us vanish from our own view — worst case is a stale server
+      // row for ourselves, never zero.
+      if(!newList.find(m => m.id === clientId)){
+        newList.unshift({ id: clientId, name: state.myName, joinedAt: state.firstSeen[clientId] || nowLocal });
+      }
 
       const stillHere = {};
       newList.forEach(m => { stillHere[m.id] = true; });
@@ -647,6 +694,8 @@
       .select("*")
       .eq("room_code", state.roomCode);
 
+    if(myToken !== pollToken) return;
+
     if(photos){
       photos.forEach(p => {
         state.photos[p.client_id] = p.image;
@@ -654,12 +703,15 @@
     }
     renderWaitlist();
 
-    // Check for a pending capture countdown
+    // Check for a pending capture countdown. maybeSingle() returns null
+    // (rather than throwing) when no capture row exists yet.
     const { data: capture } = await supabase
       .from("captures")
       .select("*")
       .eq("room_code", state.roomCode)
-      .single();
+      .maybeSingle();
+
+    if(myToken !== pollToken) return;
 
     if(capture && capture.capture_at && capture.capture_at !== state.captureAt){
       state.captureAt = capture.capture_at;
