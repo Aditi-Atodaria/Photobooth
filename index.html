@@ -302,18 +302,20 @@
 (function(){
   "use strict";
 
-  const supabase = window.supabase.createClient(
-    "https://xfdokilqoljrzqpegbjc.supabase.co",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmZG9raWxxb2xqcnpxcGVnYmpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1MTM5NTEsImV4cCI6MjEwMTA4OTk1MX0.8fmAgbqliEuAjDpxsStiUpk2E_GNC8RhOFv9B5x0nEE"
-  );
+  const SUPABASE_URL = "https://xfdokilqoljrzqpegbjc.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmZG9raWxxb2xqcnpxcGVnYmpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1MTM5NTEsImV4cCI6MjEwMTA4OTk1MX0.8fmAgbqliEuAjDpxsStiUpk2E_GNC8RhOFv9B5x0nEE";
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   // ---------------- state ----------------
   const clientId = 'm_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+  const STALE_MS = 15000;      // a member with no heartbeat in this window is treated as "left"
+  const HEARTBEAT_MS = 5000;   // how often each client re-announces itself
   let state = {
     roomCode: null,
     teamName: '',
     myName: '',
     stream: null,
     pollTimer: null,
+    heartbeatTimer: null,
     countdownTimer: null,
     captureAt: null,
     hasCaptured: false,
@@ -321,24 +323,13 @@
     members: [],       // [{id,name,joinedAt}]
     photos: {},         // id -> dataURL
     liveFrames: {},      // id -> { image, name, ts }
+    firstSeen: {},        // id -> earliest ms timestamp we've seen them, for stable ordering
     broadcastTimer: null,
   };
   let roomChannel = null;
 
   const $ = (id) => document.getElementById(id);
 
-
-  // Upsert a member into the Supabase members table for a room.
-  async function addMember(code, member){
-    await supabase
-    .from("members")
-    .upsert({
-        room_code: code,
-        client_id: member.id,
-        name: member.name,
-        joined_at: new Date().toISOString()
-    });
-  }
 
   function genRoomCode(){
     const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -376,7 +367,6 @@
         code: code,
         team_name: team
     });
-    await addMember(code, { id: clientId, name: name, joinedAt: Date.now() });
     enterRoom();
   });
 
@@ -401,26 +391,28 @@
     state.roomCode = codeRaw;
     state.teamName = teamData.team_name || 'Team';
     state.myName = name;
-    await addMember(codeRaw, { id: clientId, name: name, joinedAt: Date.now() });
     enterRoom();
   });
 
   // ---------------- enter room ----------------
   async function enterRoom(){
-
-    if(!state.members.find(m=>m.id===clientId)){
-      state.members.push({id:clientId,name:state.myName,joinedAt:Date.now()});
-      renderMembers();
-    }
     $('screen-join').classList.add('hidden');
     $('screen-room').classList.remove('hidden');
     $('roomTeamName').textContent = state.teamName;
     $('roomCodeDisplay').textContent = state.roomCode;
     $('roomCodeFoot').textContent = state.roomCode;
     await startCamera();
+
+    // Register ourselves before anything else so we show up for others
+    // (and in our own list) as soon as possible.
+    await heartbeat();
+    startHeartbeat();
+
     roomChannel = supabase
     .channel(state.roomCode, { config: { broadcast: { self: false } } })
 
+    // Any change to the roster (someone joining, or re-announcing via
+    // heartbeat) pushes an instant refresh to everyone in the room.
     .on(
     'postgres_changes',
     {
@@ -468,9 +460,64 @@
     .subscribe(status=>{
         if(status === 'SUBSCRIBED') startFrameBroadcast();
     });
+
     renderLiveGrid();
     pollRoom();
+
+    // A silent disconnect (crashed tab, lost network) produces no database
+    // event for anyone to react to, so also re-check on a fixed interval —
+    // this is what actually prunes a member out once their heartbeat goes
+    // stale, for every client in the room, not just the one that left.
+    if(state.pollTimer) clearInterval(state.pollTimer);
+    state.pollTimer = setInterval(pollRoom, 4000);
   }
+
+  // ---------------- heartbeat (roster membership) ----------------
+  // We reuse the existing `members` table exactly as before (room_code,
+  // client_id, name, joined_at) and re-upsert it periodically. `joined_at`
+  // doubles as "last seen"; pollRoom() below drops anyone whose row hasn't
+  // been refreshed recently, which is how a departed member disappears.
+  async function heartbeat(){
+    if(!state.roomCode) return;
+    try{
+      await supabase.from('members').upsert({
+        room_code: state.roomCode,
+        client_id: clientId,
+        name: state.myName,
+        joined_at: new Date().toISOString()
+      });
+    }catch(e){ /* best effort — a missed beat just gets retried next cycle */ }
+  }
+
+  function startHeartbeat(){
+    if(state.heartbeatTimer) clearInterval(state.heartbeatTimer);
+    state.heartbeatTimer = setInterval(heartbeat, HEARTBEAT_MS);
+  }
+
+  function stopHeartbeat(){
+    if(state.heartbeatTimer){ clearInterval(state.heartbeatTimer); state.heartbeatTimer = null; }
+  }
+
+  // Best-effort immediate removal on tab close / navigation, so teammates
+  // don't have to wait out the full staleness window. keepalive:true lets
+  // this fetch survive the page unload. If it doesn't fire (crash, killed
+  // process), the heartbeat staleness check is the reliable fallback.
+  function leaveRoomBestEffort(){
+    if(!state.roomCode) return;
+    try{
+      const url = SUPABASE_URL + '/rest/v1/members?room_code=eq.' + encodeURIComponent(state.roomCode) + '&client_id=eq.' + encodeURIComponent(clientId);
+      fetch(url, {
+        method: 'DELETE',
+        keepalive: true,
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+        }
+      }).catch(()=>{});
+    }catch(e){ /* ignore */ }
+  }
+  window.addEventListener('beforeunload', leaveRoomBestEffort);
+  window.addEventListener('pagehide', leaveRoomBestEffort);
 
   // ---------------- live camera preview (broadcast, not stored) ----------------
   function captureLiveFrame(){
@@ -558,20 +605,39 @@
     }
   }
 
-  // ---------------- polling ----------------
+  // ---------------- polling (roster with staleness filter, photos, capture countdown) ----------------
   async function pollRoom(){
-    const { data: members } = await supabase
+    const { data: rows } = await supabase
       .from("members")
       .select("*")
       .eq("room_code", state.roomCode)
       .order("joined_at");
 
-    if(members){
-      state.members = members.map(m => ({
-        id: m.client_id,
-        name: m.name,
-        joinedAt: new Date(m.joined_at).getTime()
-      }));
+    if(rows){
+      const now = Date.now();
+      // A row counts as "active" only if its heartbeat is recent; anyone
+      // whose tab is closed simply stops refreshing theirs and ages out.
+      const active = rows.filter(r => (now - new Date(r.joined_at).getTime()) < STALE_MS);
+
+      active.forEach(r => {
+        if(!state.firstSeen[r.client_id]) state.firstSeen[r.client_id] = new Date(r.joined_at).getTime();
+      });
+
+      const newList = active
+        .map(r => ({
+          id: r.client_id,
+          name: r.name,
+          joinedAt: state.firstSeen[r.client_id] || new Date(r.joined_at).getTime()
+        }))
+        .sort((a, b) => a.joinedAt - b.joinedAt);
+
+      const stillHere = {};
+      newList.forEach(m => { stillHere[m.id] = true; });
+      Object.keys(state.photos).forEach(id => { if(!stillHere[id]) delete state.photos[id]; });
+      Object.keys(state.liveFrames).forEach(id => { if(!stillHere[id]) delete state.liveFrames[id]; });
+      Object.keys(state.firstSeen).forEach(id => { if(!stillHere[id]) delete state.firstSeen[id]; });
+
+      state.members = newList;
     }
     renderMembers();
     renderLiveGrid();
