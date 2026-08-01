@@ -511,10 +511,16 @@
       const fileName = (state.teamName||'team').toLowerCase().replace(/[^a-z0-9]+/g,'-')
         + '-' + state.roomCode + '-' + state.format + '-' + Date.now() + '.png';
       const base64 = await blobToBase64(blob);
-      const res = await fetch(GOOGLE_DRIVE_CONFIG.webAppUrl, {
+      // Apps Script web app responses don't carry CORS headers, so a normal
+      // fetch() throws a CORS error even when the upload itself succeeds
+      // server-side. Using no-cors sends the request through but makes the
+      // response "opaque" — we can't read status/body, so we treat "fetch
+      // didn't throw" as success. If you need real confirmation, check the
+      // Drive folder, or extend DRIVE_BRIDGE.gs to log failures somewhere
+      // you can inspect (e.g. a spreadsheet).
+      await fetch(GOOGLE_DRIVE_CONFIG.webAppUrl, {
         method: 'POST',
-        // text/plain avoids a CORS preflight against Apps Script, which
-        // doesn't handle OPTIONS requests.
+        mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           filename: fileName,
@@ -523,8 +529,6 @@
           data: base64,
         }),
       });
-      const result = await res.json().catch(() => null);
-      if(!res.ok || !result || result.ok === false) throw new Error('Drive upload failed');
       setDriveStatus('saved');
     }catch(err){
       console.error('Drive upload error', err);
