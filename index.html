@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TETRATHON 2026 — Team Photobooth</title>
+<title>TETRATHON 2026: Team Photobooth</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;1,400&family=Inter:wght@400;700&family=Antonio:wght@400&display=swap" rel="stylesheet">
 <style>
   :root{
-    /* Henry — warm monochrome broadside tokens */
+    /* Henry: warm monochrome broadside tokens */
     --color-paper: #fafafa;
     --color-hairline: #eeeeee;
     --color-midstone: #9f9f9f;
@@ -33,26 +33,44 @@
 
     --display: var(--font-neue-montreal);
     --mono: var(--font-neue-montreal);
+
+    --ease: cubic-bezier(.4,0,.2,1);
   }
-  *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  html,body{ margin:0; padding:0; }
+  *{ -webkit-tap-highlight-color: transparent; }
+  button,input{ font-family:inherit; -webkit-appearance:none; appearance:none; }
+
   body{
     background: var(--color-paper);
     color: var(--color-headline-ink);
     font-family: var(--font-neue-montreal);
     letter-spacing:-0.01em;
+    line-height:1.45;
     min-height:100vh;
     display:flex;
     align-items:flex-start;
     justify-content:center;
     padding: 32px 0 64px;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
   }
   .app{ width:100%; max-width:560px; }
+
+  ::selection{ background:var(--color-headline-ink); color:var(--color-paper); }
+
+  /* focus ring, kept monochrome and only shown for keyboard navigation */
+  a:focus-visible, button:focus-visible, input:focus-visible, .tab:focus-visible{
+    outline: 2px solid var(--color-headline-ink);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 
   /* ---------- top ticker banner ---------- */
   .mark{
     display:flex; align-items:center; gap:10px; justify-content:center;
-    padding:6px 16px; margin-bottom:28px;
+    padding:8px 16px; margin-bottom:28px;
     border-top:1px solid var(--color-headline-ink);
     border-bottom:1px solid var(--color-headline-ink);
   }
@@ -62,7 +80,7 @@
     font-family: var(--font-louize-display);
     font-weight:400;
     font-size: clamp(40px,10vw,64px);
-    line-height:0.9;
+    line-height:0.95;
     text-align:center;
     letter-spacing:0;
     margin: 2px 16px 12px;
@@ -70,7 +88,7 @@
   }
   .subtitle{
     font-family: var(--font-louize);
-    text-align:center; color: var(--color-sepia); font-size:16px; line-height:1.3;
+    text-align:center; color: var(--color-sepia); font-size:16px; line-height:1.45;
     margin: 0 16px 32px; letter-spacing:-0.01em;
   }
 
@@ -80,17 +98,18 @@
     background: var(--color-paper);
     border:1px solid var(--color-headline-ink);
     border-radius:12px;
-    padding:24px;
+    padding:26px;
     margin-bottom:16px;
   }
-  .hint{ font-family:var(--font-louize); color:var(--color-sepia); font-size:16px; line-height:1.3; margin-bottom:18px; letter-spacing:-0.01em; }
+  .hint{ font-family:var(--font-louize); color:var(--color-sepia); font-size:16px; line-height:1.45; margin-bottom:18px; letter-spacing:-0.01em; }
 
   label{ display:block; font-family:var(--font-neue-montreal); font-weight:700; font-size:12px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-ash); margin-bottom:6px; }
   input[type=text]{
     width:100%; background:var(--color-paper); border:1px solid var(--color-midstone); color:var(--color-headline-ink);
     font-family:var(--font-neue-montreal); font-size:16px; letter-spacing:-0.01em; padding:12px 14px; border-radius:12px; margin-bottom:16px; outline:none;
+    transition: border-color .15s var(--ease);
   }
-  input[type=text]:focus{ border-color:var(--color-headline-ink); }
+  input[type=text]:focus{ border-color:var(--color-headline-ink); border-width:1.5px; }
   input[type=text]::placeholder{ color:var(--color-pebble); }
 
   .btn{
@@ -98,17 +117,17 @@
     width:100%; padding:13px 18px; border-radius:12px; cursor:pointer;
     background:transparent;
     font-family:var(--font-neue-montreal); font-weight:700; font-size:14px; letter-spacing:-0.12px; text-transform:uppercase;
-    transition:opacity .12s ease;
+    transition: opacity .12s var(--ease), background-color .15s var(--ease), color .15s var(--ease), border-color .15s var(--ease), transform .12s var(--ease);
   }
-  .btn:active{ opacity:.6; }
+  .btn:active{ opacity:.6; transform:scale(.98); }
   .btn-primary{ border:1px solid var(--color-headline-ink); color:var(--color-headline-ink); font-size:16px; padding:15px 18px; }
   .btn-primary:hover{ background:var(--color-headline-ink); color:var(--color-paper); }
   .btn-ghost{ background:transparent; color:var(--color-ash); border:1px solid var(--color-midstone); }
   .btn-ghost:hover{ border-color:var(--color-headline-ink); color:var(--color-headline-ink); }
-  .btn:disabled{ opacity:.35; cursor:not-allowed; }
+  .btn:disabled{ opacity:.35; cursor:not-allowed; transform:none; }
 
   .tabs{ display:flex; gap:24px; margin-bottom:24px; border-bottom:1px solid var(--color-hairline); padding:0 0 12px; }
-  .tab{ text-align:center; cursor:pointer; color:var(--color-pebble); font-family:var(--font-neue-montreal); font-weight:700; font-size:12px; letter-spacing:-0.12px; text-transform:uppercase; }
+  .tab{ text-align:center; cursor:pointer; color:var(--color-pebble); font-family:var(--font-neue-montreal); font-weight:700; font-size:12px; letter-spacing:-0.12px; text-transform:uppercase; transition:color .15s var(--ease), font-size .15s var(--ease); }
   .tab.active{ color:var(--color-headline-ink); font-size:16px; }
 
   .err{ color:var(--color-headline-ink); font-style:italic; font-family:var(--font-louize); font-size:14px; margin:-8px 0 14px; }
@@ -131,7 +150,7 @@
     position:absolute; top:10px; left:10px; display:flex; align-items:center; gap:6px;
     background:var(--color-paper); padding:4px 8px; border-radius:12px; font-family:var(--font-neue-montreal); font-weight:400; font-size:12px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-headline-ink);
   }
-  .dot{ width:7px; height:7px; border-radius:50%; background:var(--color-headline-ink); }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--color-headline-ink); transition:background-color .2s var(--ease); }
   .dot.off{ background:transparent; border:1px solid var(--color-midstone); }
   .flash{
     position:absolute; inset:0; background:var(--color-paper); opacity:0; pointer-events:none;
@@ -149,9 +168,10 @@
   .member-chip{
     display:flex; align-items:center; gap:7px; background:transparent;
     border:1px solid var(--color-midstone); padding:6px 10px; border-radius:12px; font-family:var(--font-neue-montreal); font-size:13px; letter-spacing:-0.01em; color:var(--color-headline-ink);
+    transition: border-color .15s var(--ease);
   }
   .member-chip.you{ border-color:var(--color-headline-ink); }
-  .member-chip .check{ color:var(--color-headline-ink); font-size:12px; }
+  .member-chip .check{ color:var(--color-headline-ink); display:inline-flex; align-items:center; }
 
   .section-label{ font-family:var(--font-neue-montreal); font-weight:700; font-size:12px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-ash); margin-bottom:10px; }
 
@@ -168,14 +188,20 @@
 
   /* ---------- format picker / filter picker (shared look, separate classes so their JS handlers never collide) ---------- */
   .format-picker, .filter-picker{ display:flex; gap:0; margin-bottom:18px; border:1px solid var(--color-headline-ink); border-radius:12px; overflow:hidden; }
-  .format-option, .filter-option{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:14px 8px 12px; cursor:pointer; background:transparent; border:none; border-right:1px solid var(--color-hairline); font-family:var(--font-neue-montreal); transition:background .15s ease, color .15s ease; }
+  .format-option, .filter-option{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:14px 8px 12px; cursor:pointer; background:transparent; border:none; border-right:1px solid var(--color-hairline); font-family:var(--font-neue-montreal); transition:background-color .15s var(--ease), color .15s var(--ease); }
   .format-option:last-child, .filter-option:last-child{ border-right:none; }
-  .format-option .fmt-icon, .filter-option .fmt-icon{ font-size:20px; line-height:1; }
-  .format-option .fmt-label, .filter-option .fmt-label{ font-weight:700; font-size:11px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-ash); transition:color .15s ease; }
+  .icon{ width:1em; height:1em; display:inline-block; vertical-align:-0.14em; flex-shrink:0; }
+  .btn .icon{ width:17px; height:17px; }
+  .room-code-pill .icon{ width:12px; height:12px; }
+  .btn-arrow{ width:15px; height:15px; margin-left:2px; }
+
+  .format-option .fmt-icon, .filter-option .fmt-icon{ width:21px; height:21px; display:flex; align-items:center; justify-content:center; color:var(--color-ash); transition:color .15s var(--ease); }
+  .format-option .fmt-icon svg, .filter-option .fmt-icon svg{ width:100%; height:100%; }
+  .format-option.active .fmt-icon, .filter-option.active .fmt-icon{ color:var(--color-paper); }
+  .format-option .fmt-label, .filter-option .fmt-label{ font-weight:700; font-size:11px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-ash); transition:color .15s var(--ease); }
   .format-option:hover, .filter-option:hover{ background:var(--surface-2); }
   .format-option.active, .filter-option.active{ background:var(--color-headline-ink); }
   .format-option.active .fmt-label, .filter-option.active .fmt-label{ color:var(--color-paper); }
-  .format-option.active .fmt-icon, .filter-option.active .fmt-icon{ filter:brightness(10); }
 
   /* ---------- strip ---------- */
   .strip-wrap{ display:flex; justify-content:center; margin-bottom:18px; }
@@ -191,11 +217,12 @@
 
   .waitlist{ display:flex; flex-direction:column; gap:0; margin-bottom:6px; }
   .wait-row{ display:flex; align-items:center; justify-content:space-between; font-family:var(--font-neue-montreal); font-size:14px; letter-spacing:-0.01em; padding:10px 0; background:transparent; border-bottom:1px solid var(--color-hairline); border-radius:0; }
-  .wait-row .badge{ font-family:var(--font-neue-montreal); font-weight:700; font-size:12px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-pebble); }
+  .wait-row .badge{ font-family:var(--font-neue-montreal); font-weight:700; font-size:12px; letter-spacing:-0.12px; text-transform:uppercase; color:var(--color-pebble); display:inline-flex; align-items:center; gap:4px; }
   .wait-row .badge.ready{ color:var(--color-headline-ink); }
 
   @media (max-width:420px){
     .countdown-num{ font-size:64px; }
+    .card{ padding:20px; }
   }
 </style>
 </head>
@@ -207,7 +234,7 @@
     <span class="kicker">Tetrathon 2026</span>
   </div>
   <h1 class="title">Team Photobooth</h1>
-  <p class="subtitle">One strip, everyone's face — captured together from wherever you're hacking.</p>
+  <p class="subtitle">One strip, everyone's face, captured together from wherever you're hacking.</p>
 
   <!-- ================= SCREEN 1: JOIN ================= -->
   <div id="screen-join">
@@ -218,13 +245,13 @@
       </div>
 
       <div id="pane-create">
-        <p class="hint">Create a room for your team. You'll get a short code — share it with your teammates so they can hop in from their own devices.</p>
+        <p class="hint">Create a room for your team. You'll get a short code to share with your teammates so they can hop in from their own devices.</p>
         <label for="teamName">Team name</label>
         <input type="text" id="teamName" placeholder="e.g. Nullpointers" maxlength="28">
         <label for="creatorName">Your name</label>
         <input type="text" id="creatorName" placeholder="e.g. Aditi" maxlength="20">
         <div class="err hidden" id="err-create"></div>
-        <button class="btn btn-primary" id="btn-create">Create room →</button>
+        <button class="btn btn-primary" id="btn-create">Create room <svg class="icon btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button>
       </div>
 
       <div id="pane-join" class="hidden">
@@ -234,7 +261,7 @@
         <label for="joinerName">Your name</label>
         <input type="text" id="joinerName" placeholder="e.g. Rohan" maxlength="20">
         <div class="err hidden" id="err-join"></div>
-        <button class="btn btn-primary" id="btn-join">Join room →</button>
+        <button class="btn btn-primary" id="btn-join">Join room <svg class="icon btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button>
       </div>
     </div>
     <p class="footer-note">Works best in Chrome, Edge, or Safari with camera permission allowed.</p>
@@ -246,7 +273,7 @@
       <div class="room-head">
         <div>
           <div class="team-name" id="roomTeamName">Team</div>
-          <div class="room-code-pill">⬡ <span id="roomCodeDisplay">TETRA-0000</span></div>
+          <div class="room-code-pill"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2 L21 7 L21 17 L12 22 L3 17 L3 7 Z"/></svg> <span id="roomCodeDisplay">TETRA-0000</span></div>
         </div>
         <button class="btn btn-ghost" id="btn-copy" style="width:auto; padding:9px 14px; font-size:13px;">Copy invite</button>
       </div>
@@ -260,10 +287,10 @@
 
       <div class="section-label">Your photo style</div>
       <div class="filter-picker" id="filterPicker">
-        <button class="filter-option active" data-filter="bw" id="btn-filter-bw"><span class="fmt-icon">◐</span><span class="fmt-label">Black &amp; white</span></button>
-        <button class="filter-option" data-filter="color" id="btn-filter-color"><span class="fmt-icon">●</span><span class="fmt-label">Color</span></button>
+        <button class="filter-option active" data-filter="bw" id="btn-filter-bw"><span class="fmt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg></span><span class="fmt-label">Black &amp; white</span></button>
+        <button class="filter-option" data-filter="color" id="btn-filter-color"><span class="fmt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M22 12h-3M5 12H2M19.07 4.93l-2.12 2.12M7.05 16.95l-2.12 2.12M19.07 19.07l-2.12-2.12M7.05 7.05L4.93 4.93"/></svg></span><span class="fmt-label">Color</span></button>
       </div>
-      <p class="hint" style="margin-top:-10px;">This only changes your own shot — everyone picks their own look.</p>
+      <p class="hint" style="margin-top:-10px;">This only changes your own shot. Everyone picks their own look.</p>
 
       <div class="section-label">Live from the room</div>
       <div class="live-grid" id="liveGrid"></div>
@@ -272,8 +299,8 @@
       <div class="members" id="memberList"></div>
 
       <div id="lobbyControls">
-        <button class="btn btn-primary" id="btn-start-countdown">📸 Start synced countdown</button>
-        <p class="hint" style="margin-top:12px; margin-bottom:0;">Everyone currently in the room will be captured at the same moment — get in frame before the countdown ends.</p>
+        <button class="btn btn-primary" id="btn-start-countdown"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.2a1 1 0 0 1 .8-.4h5.2a1 1 0 0 1 .8.4L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.3"/></svg> Start synced countdown</button>
+        <p class="hint" style="margin-top:12px; margin-bottom:0;">Everyone currently in the room will be captured at the same moment, so get in frame before the countdown ends.</p>
       </div>
 
       <div id="captureWaiting" class="hidden">
@@ -282,7 +309,7 @@
         <button class="btn btn-ghost" id="btn-force-finish" style="margin-top:10px;">Build strip now</button>
       </div>
     </div>
-    <p class="footer-note" id="roomFooterNote">Room code: <span id="roomCodeFoot"></span> — anyone with this code can join.</p>
+    <p class="footer-note" id="roomFooterNote">Room code: <span id="roomCodeFoot"></span>. Anyone with this code can join.</p>
   </div>
 
   <!-- ================= SCREEN 3: RESULT ================= -->
@@ -290,17 +317,17 @@
     <div class="card">
       <div class="section-label" id="resultLabel">Your photobooth strip</div>
       <div class="format-picker">
-        <button class="format-option active" data-format="strip"><span class="fmt-icon">🎞️</span><span class="fmt-label">Strip</span></button>
-        <button class="format-option" data-format="polaroid"><span class="fmt-icon">📸</span><span class="fmt-label">Polaroids</span></button>
-        <button class="format-option" data-format="grid"><span class="fmt-icon">⊞</span><span class="fmt-label">Grid</span></button>
+        <button class="format-option active" data-format="strip"><span class="fmt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="1"/><line x1="6" y1="7.3" x2="4" y2="7.3"/><line x1="6" y1="12" x2="4" y2="12"/><line x1="6" y1="16.7" x2="4" y2="16.7"/><line x1="18" y1="7.3" x2="20" y2="7.3"/><line x1="18" y1="12" x2="20" y2="12"/><line x1="18" y1="16.7" x2="20" y2="16.7"/></svg></span><span class="fmt-label">Strip</span></button>
+        <button class="format-option" data-format="polaroid"><span class="fmt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><rect x="6.5" y="5.5" width="11" height="9" rx="0.5"/></svg></span><span class="fmt-label">Polaroids</span></button>
+        <button class="format-option" data-format="grid"><span class="fmt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg></span><span class="fmt-label">Grid</span></button>
       </div>
       <div class="strip-wrap"><canvas id="stripCanvas"></canvas></div>
       <div class="row-btns">
-        <button class="btn btn-ghost" id="btn-retake">↺ Retake</button>
-        <button class="btn btn-primary" id="btn-download">⬇ Download</button>
+        <button class="btn btn-ghost" id="btn-retake"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.4-6.4L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.4 6.4L3 16"/><path d="M3 21v-5h5"/></svg> Retake</button>
+        <button class="btn btn-primary" id="btn-download"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/></svg> Download</button>
       </div>
     </div>
-    <p class="footer-note">Made with the TETRATHON 2026 photobooth — good luck out there, hackers.</p>
+    <p class="footer-note">Made with the TETRATHON 2026 photobooth. Good luck out there, hackers.</p>
   </div>
 
 </div>
@@ -352,6 +379,7 @@
   let roomChannel = null;
 
   const $ = (id) => document.getElementById(id);
+  const ICON_CHECK = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>';
 
 
   function genRoomCode(){
@@ -624,7 +652,7 @@
     if(!wrap) return;
     const others = state.members.filter(m => m.id !== clientId);
     if(others.length === 0){
-      wrap.innerHTML = '<p class="hint live-grid-empty">Invite your teammates — their camera preview shows up here once they join.</p>';
+      wrap.innerHTML = '<p class="hint live-grid-empty">Invite your teammates. Their camera preview shows up here once they join.</p>';
       return;
     }
     const now = Date.now();
@@ -650,9 +678,9 @@
     try{
       await navigator.clipboard.writeText(text);
       const btn = $('btn-copy');
-      const old = btn.textContent;
-      btn.textContent = 'Copied ✓';
-      setTimeout(()=>{ btn.textContent = old; }, 1500);
+      const old = btn.innerHTML;
+      btn.innerHTML = 'Copied ' + ICON_CHECK;
+      setTimeout(()=>{ btn.innerHTML = old; }, 1500);
     }catch(e){ /* clipboard may be unavailable, ignore */ }
   });
 
@@ -682,7 +710,7 @@
       $('camStatusText').textContent = 'camera ready';
       applyFilterToVideo();
     }catch(e){
-      $('camStatusText').textContent = 'camera blocked — allow access & reload';
+      $('camStatusText').textContent = 'camera blocked, allow access & reload';
     }
   }
 
@@ -845,7 +873,7 @@
     state.members.forEach(m => {
       const chip = document.createElement('div');
       chip.className = 'member-chip' + (m.id===clientId ? ' you' : '');
-      chip.innerHTML = (m.id===clientId ? '<span class="check">●</span> ' : '') + escapeHtml(m.name) + (m.id===clientId ? ' (you)' : '');
+      chip.innerHTML = (m.id===clientId ? '<span class="check">' + ICON_CHECK + '</span> ' : '') + escapeHtml(m.name) + (m.id===clientId ? ' (you)' : '');
       wrap.appendChild(chip);
     });
   }
@@ -959,7 +987,7 @@
       const row = document.createElement('div');
       row.className = 'wait-row';
       const ready = !!state.photos[m.id];
-      row.innerHTML = `<span>${escapeHtml(m.name)}${m.id===clientId?' (you)':''}</span><span class="badge ${ready?'ready':''}">${ready?'ready ✓':'waiting…'}</span>`;
+      row.innerHTML = `<span>${escapeHtml(m.name)}${m.id===clientId?' (you)':''}</span><span class="badge ${ready?'ready':''}">${ready ? ('Ready ' + ICON_CHECK) : 'Waiting\u2026'}</span>`;
       wrap.appendChild(row);
     });
   }
@@ -1110,7 +1138,7 @@
     ctx.font = '700 11px "Inter", sans-serif';
     ctx.fillStyle = '#666666';
     const dateStr = new Date().toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
-    ctx.fillText((state.roomCode + '  —  ' + dateStr).toUpperCase(), STRIP_W/2, total_H - 56);
+    ctx.fillText((state.roomCode + '   •   ' + dateStr).toUpperCase(), STRIP_W/2, total_H - 56);
     ctx.font = '400 11px "Inter", sans-serif';
     ctx.fillText('CAPTURED LIVE, FROM EVERYWHERE', STRIP_W/2, total_H - 36);
 
@@ -1329,7 +1357,7 @@
     ctx.font = '700 10px "Inter", sans-serif';
     ctx.fillStyle = '#666666';
     const dateStr = new Date().toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
-    ctx.fillText((state.roomCode + '  —  ' + dateStr).toUpperCase(), CANVAS_W / 2, CANVAS_H - 34);
+    ctx.fillText((state.roomCode + '   •   ' + dateStr).toUpperCase(), CANVAS_W / 2, CANVAS_H - 34);
     ctx.font = '400 10px "Inter", sans-serif';
     ctx.fillText('#TETRATHON26', CANVAS_W / 2, CANVAS_H - 18);
   }
