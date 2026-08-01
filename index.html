@@ -17,7 +17,6 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=JetBrains+Mono:wght@400;700&family=VT323&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
     /* Yinger: midnight engineer's terminal tokens */
@@ -448,24 +447,33 @@
     lastRowSig: {},        // id -> last observed raw joined_at string, used only for equality checks
     lastChangedAt: {},      // id -> local ms (this device's own clock) when we last saw lastRowSig actually change
     broadcastTimer: null,
-    driveAccessToken: null,
-    driveFolderId: null,
-    driveTokenClient: null,
-    driveStatus: 'idle',   // 'idle' | 'connecting' | 'saving' | 'saved' | 'error' | 'needs-connect'
-    pendingDriveBlob: null,
+    driveStatus: 'idle',   // 'idle' | 'saving' | 'saved' | 'error'
   };
   let roomChannel = null;
 
   const $ = (id) => document.getElementById(id);
 
-  // ---------------- Google Drive auto-save ----------------
-  // 1. In Google Cloud Console, create an OAuth 2.0 Client ID of type "Web application"
-  //    and add this page's exact origin (e.g. https://yourteam.dev) under
-  //    "Authorized JavaScript origins" — Google Identity Services requires this to match.
-  // 2. Paste that client ID below.
+  // ---------------- Google Drive auto-save (club-owned Drive) ----------------
+  // No member ever signs in to Google here. Instead, every strip is POSTed to
+  // a small Google Apps Script "Web App" that YOU (the club) deploy once from
+  // your own Google account. That script runs under your identity and drops
+  // the file straight into your club's Drive — so everyone's photos land in
+  // one shared folder with zero sign-in prompts on their end.
+  //
+  // Setup (one-time, ~5 minutes):
+  //   1. Go to https://script.google.com/ while logged into the CLUB's
+  //      Google account (the one that owns the destination Drive).
+  //   2. New project -> paste the Apps Script code from DRIVE_BRIDGE.gs
+  //      (shipped alongside this file) -> Save.
+  //   3. Deploy -> New deployment -> type "Web app".
+  //        Execute as: Me
+  //        Who has access: Anyone
+  //   4. Copy the resulting /exec URL and paste it below as WEBAPP_URL.
+  //   5. Re-deploy (Manage deployments -> Edit -> New version) any time you
+  //      change the script.
   const GOOGLE_DRIVE_CONFIG = {
-    clientId: '1001933448844-o9je1b1gs52baim07a9v2ta3vvsilt8n.apps.googleusercontent.com',
-    folderName: 'Tetrathon 2026 Photos',
+    webAppUrl: 'YOUR_APPS_SCRIPT_WEB_APP_URL', // e.g. https://script.google.com/macros/s/AKfycb.../exec
+    folderName: 'Tetrathon 2026 Photos', // must match the folder name in DRIVE_BRIDGE.gs
   };
 
   function setDriveStatus(status){
@@ -474,83 +482,49 @@
     if(!el) return;
     const map = {
       idle: '',
-      connecting: 'Connecting to Google Drive…',
-      saving: 'Saving to Google Drive…',
-      saved: 'Saved to Google Drive',
+      saving: 'Saving to club Drive…',
+      saved: 'Saved to club Drive',
       error: 'Couldn\'t save to Drive — tap to retry',
-      'needs-connect': 'Connect Google Drive to auto-save',
     };
     el.textContent = map[status] || '';
     el.classList.toggle('hidden', !map[status]);
-    el.classList.toggle('is-actionable', status === 'error' || status === 'needs-connect');
+    el.classList.toggle('is-actionable', status === 'error');
   }
 
-  function initGoogleDrive(){
-    if(!window.google || !google.accounts || !google.accounts.oauth2) return;
-    if(GOOGLE_DRIVE_CONFIG.clientId.startsWith('YOUR_GOOGLE_OAUTH_CLIENT_ID')) return; // not configured yet
-    state.driveTokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_DRIVE_CONFIG.clientId,
-      scope: 'https://www.googleapis.com/auth/drive.file',
-      callback: (resp) => {
-        if(resp && resp.access_token){
-          state.driveAccessToken = resp.access_token;
-          if(state.pendingDriveBlob){
-            const blob = state.pendingDriveBlob;
-            state.pendingDriveBlob = null;
-            uploadBlobToDrive(blob);
-          } else {
-            setDriveStatus('idle');
-          }
-        } else {
-          setDriveStatus('needs-connect');
-        }
-      },
-      error_callback: () => setDriveStatus('needs-connect'),
+  function blobToBase64(blob){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(String(reader.result).split(',')[1] || '');
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
     });
-    // Try a silent, no-popup token request in case this browser already
-    // granted access before. If there's no prior grant, Google silently
-    // no-ops here rather than popping a window — that's expected the very
-    // first time, and the status pill below lets someone connect manually.
-    state.driveTokenClient.requestAccessToken({ prompt: '' });
-  }
-
-  async function ensureDriveFolder(){
-    if(state.driveFolderId) return state.driveFolderId;
-    const q = encodeURIComponent(`name='${GOOGLE_DRIVE_CONFIG.folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
-      headers: { Authorization: `Bearer ${state.driveAccessToken}` }
-    });
-    const data = await res.json();
-    if(data.files && data.files.length){
-      state.driveFolderId = data.files[0].id;
-      return state.driveFolderId;
-    }
-    const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${state.driveAccessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: GOOGLE_DRIVE_CONFIG.folderName, mimeType: 'application/vnd.google-apps.folder' })
-    });
-    const created = await createRes.json();
-    state.driveFolderId = created.id;
-    return state.driveFolderId;
   }
 
   async function uploadBlobToDrive(blob){
+    if(!GOOGLE_DRIVE_CONFIG.webAppUrl || GOOGLE_DRIVE_CONFIG.webAppUrl.startsWith('YOUR_APPS_SCRIPT')){
+      console.warn('Drive bridge not configured yet — set GOOGLE_DRIVE_CONFIG.webAppUrl');
+      setDriveStatus('error');
+      return;
+    }
     try{
       setDriveStatus('saving');
-      const folderId = await ensureDriveFolder();
       const fileName = (state.teamName||'team').toLowerCase().replace(/[^a-z0-9]+/g,'-')
         + '-' + state.roomCode + '-' + state.format + '-' + Date.now() + '.png';
-      const metadata = { name: fileName, parents: [folderId], mimeType: 'image/png' };
-      const form = new FormData();
-      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-      form.append('file', blob);
-      const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      const base64 = await blobToBase64(blob);
+      const res = await fetch(GOOGLE_DRIVE_CONFIG.webAppUrl, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${state.driveAccessToken}` },
-        body: form
+        // text/plain avoids a CORS preflight against Apps Script, which
+        // doesn't handle OPTIONS requests.
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          filename: fileName,
+          mimeType: 'image/png',
+          folderName: GOOGLE_DRIVE_CONFIG.folderName,
+          data: base64,
+        }),
       });
-      if(!res.ok) throw new Error('Drive upload failed: ' + res.status);
+      const result = await res.json().catch(() => null);
+      if(!res.ok || !result || result.ok === false) throw new Error('Drive upload failed');
       setDriveStatus('saved');
     }catch(err){
       console.error('Drive upload error', err);
@@ -559,36 +533,19 @@
   }
 
   function saveCurrentStripToDrive(){
-    if(!state.driveTokenClient){
-      setDriveStatus('needs-connect');
-      return;
-    }
     const canvas = $('stripCanvas');
     canvas.toBlob((blob) => {
       if(!blob) return;
-      if(!state.driveAccessToken){
-        state.pendingDriveBlob = blob;
-        setDriveStatus('connecting');
-        state.driveTokenClient.requestAccessToken({ prompt: '' });
-      } else {
-        uploadBlobToDrive(blob);
-      }
+      uploadBlobToDrive(blob);
     }, 'image/png');
   }
 
-  // Manual fallback: first-time visitors (no prior Drive grant) or a failed
-  // upload land here as an actionable status pill. Clicking it opens the
-  // Google consent popup — required because browsers block auth popups
-  // that aren't triggered by a direct user gesture.
+  // Manual retry for a failed upload.
   document.addEventListener('click', (e) => {
-    if(e.target && e.target.id === 'driveStatus' && (state.driveStatus === 'needs-connect' || state.driveStatus === 'error')){
-      if(!state.driveTokenClient) return;
-      setDriveStatus('connecting');
-      state.driveTokenClient.requestAccessToken({ prompt: 'consent' });
+    if(e.target && e.target.id === 'driveStatus' && state.driveStatus === 'error'){
+      saveCurrentStripToDrive();
     }
   });
-
-  window.addEventListener('load', initGoogleDrive);
 
   // ---------------- theme toggle ----------------
   $('btn-theme-toggle').addEventListener('click', () => {
