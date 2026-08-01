@@ -381,6 +381,20 @@
   const $ = (id) => document.getElementById(id);
   const ICON_CHECK = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>';
 
+  // How long a teammate's last broadcast camera frame is trusted before we
+  // stop showing it and stop waiting on them for a photo. Deliberately much
+  // shorter than the 45s roster-eviction window: someone can still be
+  // "in the room" on the member list while their camera clearly isn't —
+  // tab backgrounded, camera revoked, or they simply didn't stick around
+  // for a retake. Their frozen last frame shouldn't keep looking live.
+  const LIVE_FRAME_TIMEOUT_MS = 10000;
+
+  function isLiveVisible(id){
+    if(id === clientId) return true; // we always know we're here
+    const frame = state.liveFrames[id];
+    return !!frame && (Date.now() - frame.ts) <= LIVE_FRAME_TIMEOUT_MS;
+  }
+
 
   function genRoomCode(){
     const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -659,15 +673,19 @@
     wrap.innerHTML = '';
     others.forEach(m => {
       const frame = state.liveFrames[m.id];
+      const fresh = frame && (now - frame.ts) <= LIVE_FRAME_TIMEOUT_MS;
       const tile = document.createElement('div');
-      tile.className = 'live-tile' + (!frame ? ' offline' : '');
-      if(frame){
-        const stale = (now - frame.ts) > 6000;
+      tile.className = 'live-tile' + (!fresh ? ' offline' : '');
+      if(fresh){
         tile.innerHTML = '<img src="' + frame.image + '" alt="' + escapeHtml(m.name) + '">' +
-          '<span class="live-dot' + (stale ? ' stale' : '') + '"></span>' +
+          '<span class="live-dot"></span>' +
           '<span class="live-tile-name">' + escapeHtml(m.name) + '</span>';
+      } else if(frame){
+        // Was visible before, has since gone quiet — don't leave their old
+        // frame on screen looking like a live view.
+        tile.innerHTML = '<span class="live-tile-placeholder">' + escapeHtml(m.name) + '<br>no longer visible</span>';
       } else {
-        tile.innerHTML = '<span class="live-tile-placeholder">' + escapeHtml(m.name) + '<br>connecting…</span>';
+        tile.innerHTML = '<span class="live-tile-placeholder">' + escapeHtml(m.name) + '<br>connecting\u2026</span>';
       }
       wrap.appendChild(tile);
     });
@@ -856,9 +874,13 @@
       beginCountdownToTimestamp(capture.capture_at);
     }
 
-    // If we've already captured, check whether all photos are in
+    // If we've already captured, check whether all photos are in. We only
+    // require a photo from members who are actually visible right now (or
+    // who already have one) — someone who left, or never stuck around for
+    // this round, shouldn't hold up the group photo indefinitely.
     if(state.hasCaptured){
-      const allIn = state.members.length > 0 && state.members.every(m => !!state.photos[m.id]);
+      const required = state.members.filter(m => isLiveVisible(m.id) || !!state.photos[m.id]);
+      const allIn = required.length > 0 && required.every(m => !!state.photos[m.id]);
       if(allIn && !state._finished){
         state._finished = true;
         buildStrip();
@@ -973,7 +995,8 @@
       .eq("room_code", state.roomCode);
     if(photos) photos.forEach(p => { state.photos[p.client_id] = p.image; });
     renderWaitlist();
-    const allIn = state.members.length > 0 && state.members.every(m => !!state.photos[m.id]);
+    const required = state.members.filter(m => isLiveVisible(m.id) || !!state.photos[m.id]);
+    const allIn = required.length > 0 && required.every(m => !!state.photos[m.id]);
     if(allIn && !state._finished){
       state._finished = true;
       buildStrip();
@@ -983,7 +1006,8 @@
   function renderWaitlist(){
     const wrap = $('waitList');
     wrap.innerHTML = '';
-    state.members.forEach(m => {
+    const visible = state.members.filter(m => isLiveVisible(m.id) || !!state.photos[m.id]);
+    visible.forEach(m => {
       const row = document.createElement('div');
       row.className = 'wait-row';
       const ready = !!state.photos[m.id];
