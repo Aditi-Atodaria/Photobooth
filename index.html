@@ -327,7 +327,7 @@
   // heartbeat was even due. Timing it against this device's own clock,
   // compared only to this same device's own previous reading, is immune to
   // however often polling happens to occur.
-  const STALE_MS = 20000;      // elapsed local time with no change before a member is treated as "left"
+  const STALE_MS = 45000;      // elapsed local time with no change before a member is treated as "left"
   const HEARTBEAT_MS = 5000;   // how often each client re-announces itself
   let state = {
     roomCode: null,
@@ -505,6 +505,7 @@
     // the room code over chat. Catch up immediately the moment the tab
     // is visible again instead of waiting on the next throttled tick.
     document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', onVisibilityChange);
   }
 
   function onVisibilityChange(){
@@ -527,8 +528,13 @@
         client_id: clientId,
         name: state.myName,
         joined_at: new Date().toISOString()
-      });
-    }catch(e){ /* best effort — a missed beat just gets retried next cycle */ }
+      }, { onConflict: 'room_code,client_id' });
+    }catch(e){
+      // A single dropped request on flaky venue wifi shouldn't cost most of
+      // the staleness budget waiting for the next scheduled beat — retry
+      // once, soon, instead of waiting the full HEARTBEAT_MS.
+      setTimeout(() => { if(state.roomCode) heartbeat(); }, 1500);
+    }
   }
 
   function startHeartbeat(){
@@ -726,7 +732,17 @@
       const nowLocal = Date.now();
       const seenIds = {};
 
-      rows.forEach(r => {
+      // Defensive de-dupe: keep only the most recent row per client_id.
+      // Rows are already ordered by joined_at ascending, so the last
+      // occurrence of a given id is the freshest one — this protects
+      // against duplicate rows from ever inflating the roster or confusing
+      // the change-detection below, regardless of what the table's actual
+      // unique constraint turns out to be.
+      const latestById = {};
+      rows.forEach(r => { latestById[r.client_id] = r; });
+      const dedupedRows = Object.values(latestById);
+
+      dedupedRows.forEach(r => {
         const id = r.client_id;
         seenIds[id] = true;
 
@@ -759,7 +775,7 @@
         }
       });
 
-      const active = rows.filter(r => r.client_id === clientId || (nowLocal - (state.lastChangedAt[r.client_id] || nowLocal)) < STALE_MS);
+      const active = dedupedRows.filter(r => r.client_id === clientId || (nowLocal - (state.lastChangedAt[r.client_id] || nowLocal)) < STALE_MS);
 
       const newList = active
         .map(r => ({ id: r.client_id, name: r.name, joinedAt: state.firstSeen[r.client_id] || nowLocal }))
@@ -844,7 +860,7 @@
     await supabase.from("captures").upsert({
         room_code: state.roomCode,
         capture_at: captureAt
-    });
+    }, { onConflict: 'room_code' });
     state.captureAt = captureAt;
     beginCountdownToTimestamp(captureAt);
   });
@@ -915,7 +931,7 @@
         room_code: state.roomCode,
         client_id: clientId,
         image: dataUrl
-    });
+    }, { onConflict: 'room_code,client_id' });
 
     $('captureWaiting').classList.remove('hidden');
     renderWaitlist();
