@@ -266,8 +266,15 @@
   canvas#stripCanvas{ max-width:100%; height:auto; border-radius:0; border:1px solid var(--color-headline-ink); }
 
   .drive-status{
-    text-align:center; margin:0 0 14px; font-family:var(--font-neue-montreal); font-size:12px; letter-spacing:-0.6px; text-transform:uppercase; color:var(--color-ash);
+    display:inline-flex; align-items:center; gap:6px;
+    margin:0 auto 14px; padding:6px 14px;
+    font-family:var(--font-neue-montreal); font-size:12px; letter-spacing:-0.4px; text-transform:uppercase;
+    color:var(--color-ash); background:var(--surface-2); border:1px solid var(--line);
+    border-radius:var(--radius-tags); width:fit-content;
   }
+  .drive-status-row{ display:flex; justify-content:center; }
+  .drive-status.status-saved{ color:var(--color-paper); background:var(--color-headline-ink); border-color:var(--color-headline-ink); }
+  .drive-status.status-saving{ color:var(--color-headline-ink); border-color:var(--color-headline-ink); }
   .drive-status.is-actionable{ cursor:pointer; color:var(--color-headline-ink); text-decoration:underline; text-underline-offset:3px; }
 
   .row-btns{ display:flex; gap:10px; }
@@ -393,7 +400,7 @@
         <button class="format-option" data-format="grid"><span class="fmt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg></span><span class="fmt-label">Grid</span></button>
       </div>
       <div class="strip-wrap"><canvas id="stripCanvas"></canvas></div>
-      <p class="drive-status hidden" id="driveStatus"></p>
+      <div class="drive-status-row"><p class="drive-status hidden" id="driveStatus"></p></div>
       <div class="row-btns">
         <button class="btn btn-ghost" id="btn-retake"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.4-6.4L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.4 6.4L3 16"/><path d="M3 21v-5h5"/></svg> Retake</button>
         <button class="btn btn-primary" id="btn-download"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/></svg> Download</button>
@@ -482,12 +489,14 @@
     if(!el) return;
     const map = {
       idle: '',
-      saving: 'Saving to club Drive…',
-      saved: 'Saved to club Drive',
-      error: 'Couldn\'t save to Drive — tap to retry',
+      saving: '⋯ Saving to club Google Drive…',
+      saved: '✓ Saved to the club Google Drive',
+      error: '⚠ Couldn\'t save — tap to retry',
     };
     el.textContent = map[status] || '';
     el.classList.toggle('hidden', !map[status]);
+    el.classList.toggle('status-saved', status === 'saved');
+    el.classList.toggle('status-saving', status === 'saving');
     el.classList.toggle('is-actionable', status === 'error');
   }
 
